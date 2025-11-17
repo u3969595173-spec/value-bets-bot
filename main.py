@@ -70,8 +70,8 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 # Configuracin de filtros
 MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))
-MAX_ODD = float(os.getenv("MAX_ODD", "2.1"))  # Reducido segn especificacin
-MIN_PROB = float(os.getenv("MIN_PROB", "0.70"))  # 70% mnimo segn especificacin
+MAX_ODD = float(os.getenv("MAX_ODD", "2.5"))
+MIN_PROB = float(os.getenv("MIN_PROB", "0.60"))  # 60% mínimo
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))
 
 # Deportes a monitorear
