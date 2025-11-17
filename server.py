@@ -5,6 +5,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import os
 import sys
+import asyncio
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -30,4 +31,5 @@ if __name__ == '__main__':
     
     # Importar y ejecutar el bot principal
     print("Iniciando bot principal...")
-    import main
+    from main import main
+    asyncio.run(main())
