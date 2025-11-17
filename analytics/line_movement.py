@@ -39,6 +39,8 @@ class LineMovementTracker:
                     continue
                 
                 # Extraer cuotas de todos los bookmakers
+                snapshots_to_save = []  # Acumular para batch insert
+                
                 for bookmaker in event.get('bookmakers', []):
                     book_name = bookmaker.get('title', bookmaker.get('key'))
                     
@@ -59,10 +61,13 @@ class LineMovementTracker:
                             
                             # Guardar en memoria (últimas 24 horas)
                             self.odds_history[event_id].append((now, snapshot))
+                            snapshots_to_save.append(snapshot)
                             saved += 1
-                            
-                            # Guardar en Supabase para histórico permanente
-                            historical_db.save_odds_snapshot(snapshot)
+            
+            # Guardar TODOS los snapshots en lote (mucho más rápido)
+            if snapshots_to_save:
+                logger.info(f"💾 Guardando {len(snapshots_to_save)} snapshots en lote...")
+                historical_db.save_odds_snapshots_batch(snapshots_to_save)
             
             # Limpiar datos viejos (> 24 horas)
             self._cleanup_old_data()

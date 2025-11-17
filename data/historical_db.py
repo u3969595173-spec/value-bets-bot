@@ -371,6 +371,42 @@ class HistoricalDatabase:
             logger.error(f"Error saving odds snapshot: {e}")
             return False
     
+    def save_odds_snapshots_batch(self, snapshots: List[Dict]) -> int:
+        """Guarda múltiples snapshots en lote (mucho más rápido)"""
+        if not snapshots:
+            return 0
+            
+        try:
+            # Preparar datos
+            batch_data = []
+            for snapshot in snapshots:
+                batch_data.append({
+                    'timestamp': snapshot['timestamp'],
+                    'event_id': snapshot['event_id'],
+                    'sport_key': snapshot.get('sport_key'),
+                    'bookmaker': snapshot['bookmaker'],
+                    'market': snapshot['market'],
+                    'selection': snapshot['selection'],
+                    'odds': snapshot['odds'],
+                    'point': snapshot.get('point')
+                })
+            
+            # Insertar en lotes de 1000 (límite de Supabase)
+            batch_size = 1000
+            total_saved = 0
+            
+            for i in range(0, len(batch_data), batch_size):
+                batch = batch_data[i:i + batch_size]
+                self.supabase.table('odds_snapshots').insert(batch).execute()
+                total_saved += len(batch)
+                logger.info(f"💾 Guardados {total_saved}/{len(batch_data)} snapshots...")
+            
+            return total_saved
+            
+        except Exception as e:
+            logger.error(f"Error saving odds snapshots batch: {e}")
+            return 0
+    
     def get_odds_history(self, event_id: str, hours: int = 24) -> List[Dict]:
         """Obtiene histórico de cuotas de un evento"""
         try:
