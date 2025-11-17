@@ -40,6 +40,9 @@ try:
     from data.stats_api import injury_scraper
     from analytics.line_movement import line_tracker
     from scanner.enhanced_scanner import EnhancedValueScanner
+    from scanner.ml_scanner import MLValueScanner
+    from analytics.clv_tracker import clv_tracker
+    from utils.kelly_criterion import kelly_calculator
     ENHANCED_SYSTEM_AVAILABLE = True
 except ImportError:
     historical_db = None
@@ -75,14 +78,14 @@ CHAT_ID = os.getenv("CHAT_ID")
 # Configuracin de filtros
 MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))
 MAX_ODD = float(os.getenv("MAX_ODD", "2.5"))
-MIN_PROB = float(os.getenv("MIN_PROB", "0.60"))  # 60% mínimo
+MIN_PROB = float(os.getenv("MIN_PROB", "0.60"))  # 60% mÃƒÂ­nimo
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))
 
 # Deportes a monitorear
 SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp,tennis_wta,baseball_mlb").split(",")
 
-# Configuración de tiempo
-AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de América
+# ConfiguraciÃƒÂ³n de tiempo
+AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de AmÃƒÂ©rica
 DAILY_START_HOUR = 6  # 6 AM
 UPDATE_INTERVAL_MINUTES = 10  # Actualizar cada 10 minutos (mantiene Render activo)
 ALERT_WINDOW_HOURS = 4  # Alertar cuando falten menos de 4 horas
@@ -99,21 +102,21 @@ class ValueBotMonitor:
     def __init__(self):
         self.fetcher = OddsFetcher(api_key=API_KEY)
         
-        # Usar scanner mejorado si está disponible
+        # Usar scanner mejorado si estÃƒÂ¡ disponible
         if ENHANCED_SYSTEM_AVAILABLE and EnhancedValueScanner:
             self.scanner = EnhancedValueScanner(
                 min_odd=MIN_ODD, 
                 max_odd=MAX_ODD, 
                 min_prob=MIN_PROB
             )
-            logger.info("✅ Usando EnhancedValueScanner con line movement")
+            logger.info("Ã¢Å“â€¦ Usando EnhancedValueScanner con line movement")
         else:
             self.scanner = ValueScanner(
                 min_odd=MIN_ODD, 
                 max_odd=MAX_ODD, 
                 min_prob=MIN_PROB
             )
-            logger.info("⚠️  Usando ValueScanner básico")
+            logger.info("Ã¢Å¡Â Ã¯Â¸Â  Usando ValueScanner bÃƒÂ¡sico")
         
         self.notifier = TelegramNotifier(BOT_TOKEN)
         self.users_manager = get_users_manager()
@@ -130,12 +133,12 @@ class ValueBotMonitor:
         
         # Log sistema mejorado
         if ENHANCED_SYSTEM_AVAILABLE:
-            logger.info("✅ Sistema mejorado disponible:")
-            logger.info(f"   - Base de datos histórica: {historical_db is not None}")
+            logger.info("Ã¢Å“â€¦ Sistema mejorado disponible:")
+            logger.info(f"   - Base de datos histÃƒÂ³rica: {historical_db is not None}")
             logger.info(f"   - Scraper de lesiones: {injury_scraper is not None}")
             logger.info(f"   - Modelo mejorado: {USING_ENHANCED_MODEL}")
         else:
-            logger.info("⚠️  Sistema mejorado no disponible, usando versión básica")
+            logger.info("Ã¢Å¡Â Ã¯Â¸Â  Sistema mejorado no disponible, usando versiÃƒÂ³n bÃƒÂ¡sica")
 
     def is_daily_start_time(self) -> bool:
         """
@@ -162,7 +165,7 @@ class ValueBotMonitor:
 
     def get_next_update_time(self) -> datetime:
         """
-        Calcula la próxima actualización (cada 10 minutos)
+        Calcula la prÃƒÂ³xima actualizaciÃƒÂ³n (cada 10 minutos)
         """
         now = datetime.now(AMERICA_TZ)
         next_update = now + timedelta(minutes=UPDATE_INTERVAL_MINUTES)
@@ -182,7 +185,7 @@ class ValueBotMonitor:
     
     def get_next_verification_time(self) -> datetime:
         """
-        Calcula la próxima verificación de resultados (2 AM América)
+        Calcula la prÃƒÂ³xima verificaciÃƒÂ³n de resultados (2 AM AmÃƒÂ©rica)
         """
         now = datetime.now(AMERICA_TZ)
         next_verification = now.replace(hour=2, minute=0, second=0, microsecond=0)
@@ -194,16 +197,16 @@ class ValueBotMonitor:
     
     async def verify_results(self):
         """
-        Verifica resultados de predicciones pendientes usando auto-verificación
+        Verifica resultados de predicciones pendientes usando auto-verificaciÃƒÂ³n
         """
         if not ENHANCED_SYSTEM_AVAILABLE or not API_KEY:
-            logger.warning("Sistema mejorado o API_KEY no disponible, saltando verificación")
+            logger.warning("Sistema mejorado o API_KEY no disponible, saltando verificaciÃƒÂ³n")
             return
         
         try:
-            logger.info("🔍 Iniciando verificación automática de resultados...")
+            logger.info("Ã°Å¸â€Â Iniciando verificaciÃƒÂ³n automÃƒÂ¡tica de resultados...")
             
-            # Importar el verificador automático
+            # Importar el verificador automÃƒÂ¡tico
             from verification.auto_verify import AutoVerifier
             
             verifier = AutoVerifier(API_KEY)
@@ -212,35 +215,35 @@ class ValueBotMonitor:
             # Log de resultados
             if stats['verified'] > 0:
                 accuracy = (stats['correct'] / stats['verified'] * 100) if stats['verified'] > 0 else 0
-                logger.info(f"✅ Verificación completada:")
-                logger.info(f"   • Verificadas: {stats['verified']}")
-                logger.info(f"   • Correctas: {stats['correct']}")
-                logger.info(f"   • Accuracy: {accuracy:.1f}%")
-                logger.info(f"   • Profit: ${stats['total_profit']:+.2f}")
+                logger.info(f"Ã¢Å“â€¦ VerificaciÃƒÂ³n completada:")
+                logger.info(f"   Ã¢â‚¬Â¢ Verificadas: {stats['verified']}")
+                logger.info(f"   Ã¢â‚¬Â¢ Correctas: {stats['correct']}")
+                logger.info(f"   Ã¢â‚¬Â¢ Accuracy: {accuracy:.1f}%")
+                logger.info(f"   Ã¢â‚¬Â¢ Profit: ${stats['total_profit']:+.2f}")
                 
-                # Notificar al admin con resumen de 7 días
+                # Notificar al admin con resumen de 7 dÃƒÂ­as
                 performance = verifier.get_performance_summary(days=7)
                 
-                report = f"""📊 **VERIFICACIÓN DIARIA DE RESULTADOS**
+                report = f"""Ã°Å¸â€œÅ  **VERIFICACIÃƒâ€œN DIARIA DE RESULTADOS**
 
-🆕 **Últimas 24h:**
-✅ Predicciones verificadas: {stats['verified']}
-🎯 Correctas: {stats['correct']}
-📈 Accuracy: {accuracy:.1f}%
-💰 Profit: ${stats['total_profit']:+.2f}
+Ã°Å¸â€ â€¢ **ÃƒÅ¡ltimas 24h:**
+Ã¢Å“â€¦ Predicciones verificadas: {stats['verified']}
+Ã°Å¸Å½Â¯ Correctas: {stats['correct']}
+Ã°Å¸â€œË† Accuracy: {accuracy:.1f}%
+Ã°Å¸â€™Â° Profit: ${stats['total_profit']:+.2f}
 
-📅 **Últimos 7 días:**
-🎲 Total: {performance.get('total_predictions', 0)}
-✅ Accuracy: {performance.get('accuracy', '0%')}
-💵 ROI: {performance.get('roi', '0%')}
-💰 Profit: {performance.get('total_profit', '$0')}"""
+Ã°Å¸â€œâ€¦ **ÃƒÅ¡ltimos 7 dÃƒÂ­as:**
+Ã°Å¸Å½Â² Total: {performance.get('total_predictions', 0)}
+Ã¢Å“â€¦ Accuracy: {performance.get('accuracy', '0%')}
+Ã°Å¸â€™Âµ ROI: {performance.get('roi', '0%')}
+Ã°Å¸â€™Â° Profit: {performance.get('total_profit', '$0')}"""
                 
                 await self.notifier.send_message(CHAT_ID, report)
             else:
-                logger.info("ℹ️ No hay predicciones para verificar")
+                logger.info("Ã¢â€žÂ¹Ã¯Â¸Â No hay predicciones para verificar")
                 
         except Exception as e:
-            logger.error(f"❌ Error en verificación de resultados: {e}")
+            logger.error(f"Ã¢ÂÅ’ Error en verificaciÃƒÂ³n de resultados: {e}")
 
     async def fetch_and_update_events(self) -> List[Dict]:
         """
@@ -310,15 +313,15 @@ class ValueBotMonitor:
         Encuentra oportunidades de value betting usando el scanner mejorado
         """
         try:
-            # Usar scanner mejorado si está disponible
+            # Usar scanner mejorado si estÃƒÂ¡ disponible
             if ENHANCED_SYSTEM_AVAILABLE and EnhancedValueScanner and isinstance(self.scanner, EnhancedValueScanner):
-                # Scanner con análisis de line movement
+                # Scanner con anÃƒÂ¡lisis de line movement
                 candidates = self.scanner.find_value_bets_with_movement(events)
                 
                 # Filtrar por nivel de confianza (solo high y very_high)
                 candidates = self.scanner.filter_by_confidence(candidates, min_level='high')
                 
-                logger.info(f"🎯 Found {len(candidates)} high-confidence value opportunities with movement analysis")
+                logger.info(f"Ã°Å¸Å½Â¯ Found {len(candidates)} high-confidence value opportunities with movement analysis")
                 
                 # Log detallado de candidatos
                 for i, candidate in enumerate(candidates[:10], 1):
@@ -328,12 +331,12 @@ class ValueBotMonitor:
                     prob = candidate.get('prob', 0.0) * 100
                     value = candidate.get('value', 0.0)
                     confidence = candidate.get('confidence_level', 'unknown')
-                    steam = "🔥" if candidate.get('has_steam_move') else ""
+                    steam = "Ã°Å¸â€Â¥" if candidate.get('has_steam_move') else ""
                     
                     movement = candidate.get('line_movement')
                     if movement:
                         change = movement.get('change_percent', 0)
-                        trend_emoji = "📈" if change > 0 else "📉" if change < 0 else "➡️"
+                        trend_emoji = "Ã°Å¸â€œË†" if change > 0 else "Ã°Å¸â€œâ€°" if change < 0 else "Ã¢Å¾Â¡Ã¯Â¸Â"
                         logger.info(
                             f"  [{i}] {sport}: {selection} @ {odds:.2f} "
                             f"(prob: {prob:.1f}%, value: {value:.3f}) "
@@ -345,10 +348,10 @@ class ValueBotMonitor:
                             f"(prob: {prob:.1f}%, value: {value:.3f}) {confidence}"
                         )
             else:
-                # Scanner básico
+                # Scanner bÃƒÂ¡sico
                 candidates = self.scanner.find_value_bets(events)
                 
-                logger.info(f"📊 Found {len(candidates)} value candidates (basic scan)")
+                logger.info(f"Ã°Å¸â€œÅ  Found {len(candidates)} value candidates (basic scan)")
                 
                 # Log de candidatos encontrados
                 for i, candidate in enumerate(candidates[:10], 1):
@@ -366,7 +369,7 @@ class ValueBotMonitor:
             return candidates
             
         except Exception as e:
-            logger.error(f"❌ Error finding value opportunities: {e}")
+            logger.error(f"Ã¢ÂÅ’ Error finding value opportunities: {e}")
             return []
 
     async def send_alert_to_user(self, user: User, candidate: Dict) -> bool:
@@ -399,7 +402,7 @@ class ValueBotMonitor:
             user.record_alert_sent()
             self.users_manager.save_user(user)
             
-            # SISTEMA MEJORADO: Guardar predicción en BD
+            # SISTEMA MEJORADO: Guardar predicciÃƒÂ³n en BD
             if ENHANCED_SYSTEM_AVAILABLE and historical_db:
                 try:
                     prediction = {
@@ -413,9 +416,9 @@ class ValueBotMonitor:
                     }
                     pred_id = historical_db.save_prediction(prediction)
                     if pred_id:
-                        logger.debug(f"Predicción guardada con ID: {pred_id}")
+                        logger.debug(f"PredicciÃƒÂ³n guardada con ID: {pred_id}")
                 except Exception as e:
-                    logger.error(f"Error guardando predicción: {e}")
+                    logger.error(f"Error guardando predicciÃƒÂ³n: {e}")
             
             # Agregar a sent_alerts para evitar duplicados
             alert_key = f"{user.chat_id}_{candidate.get('id', '')}_{candidate.get('selection', '')}"
@@ -509,7 +512,7 @@ class ValueBotMonitor:
         
         # SISTEMA MEJORADO: Actualizar lesiones
         if ENHANCED_SYSTEM_AVAILABLE and injury_scraper:
-            logger.info("📊 Actualizando lesiones de deportes...")
+            logger.info("Ã°Å¸â€œÅ  Actualizando lesiones de deportes...")
             try:
                 # Actualizar lesiones de NBA
                 nba_injuries = injury_scraper.get_injuries('nba')
@@ -517,7 +520,7 @@ class ValueBotMonitor:
                     for injury in nba_injuries:
                         injury['sport_key'] = 'basketball_nba'
                     saved = historical_db.save_injuries(nba_injuries)
-                    logger.info(f"✅ {saved} lesiones NBA guardadas")
+                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones NBA guardadas")
                 
                 # Actualizar lesiones de NFL
                 nfl_injuries = injury_scraper.get_injuries('nfl')
@@ -525,7 +528,7 @@ class ValueBotMonitor:
                     for injury in nfl_injuries:
                         injury['sport_key'] = 'americanfootball_nfl'
                     saved = historical_db.save_injuries(nfl_injuries)
-                    logger.info(f"✅ {saved} lesiones NFL guardadas")
+                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones NFL guardadas")
                 
                 # Actualizar lesiones de MLB
                 mlb_injuries = injury_scraper.get_injuries('mlb')
@@ -533,7 +536,7 @@ class ValueBotMonitor:
                     for injury in mlb_injuries:
                         injury['sport_key'] = 'baseball_mlb'
                     saved = historical_db.save_injuries(mlb_injuries)
-                    logger.info(f"✅ {saved} lesiones MLB guardadas")
+                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones MLB guardadas")
                     
             except Exception as e:
                 logger.error(f"Error actualizando lesiones: {e}")
@@ -554,7 +557,7 @@ class ValueBotMonitor:
                     }
                     if match_data['id']:
                         historical_db.save_match(match_data)
-                logger.info(f"✅ {len(events)} eventos guardados en BD")
+                logger.info(f"Ã¢Å“â€¦ {len(events)} eventos guardados en BD")
             except Exception as e:
                 logger.error(f"Error guardando eventos en BD: {e}")
         
@@ -573,9 +576,9 @@ class ValueBotMonitor:
 
     async def hourly_update(self):
         """
-        Actualizacin cada hora (o cada 10 minutos en producción)
+        Actualizacin cada hora (o cada 10 minutos en producciÃƒÂ³n)
         """
-        logger.info("⏰ HOURLY UPDATE")
+        logger.info("Ã¢ÂÂ° HOURLY UPDATE")
         
         # Actualizar eventos y cuotas
         events = await self.fetch_and_update_events()
@@ -584,7 +587,7 @@ class ValueBotMonitor:
         if ENHANCED_SYSTEM_AVAILABLE and line_tracker:
             try:
                 snapshot_count = line_tracker.record_odds_snapshot(events)
-                logger.info(f"📸 Recorded {snapshot_count} odds snapshots for line movement tracking")
+                logger.info(f"Ã°Å¸â€œÂ¸ Recorded {snapshot_count} odds snapshots for line movement tracking")
             except Exception as e:
                 logger.error(f"Error recording odds snapshot: {e}")
         
@@ -596,7 +599,7 @@ class ValueBotMonitor:
         total_monitored = len(self.monitored_events)
         
         logger.info(
-            f"📊 Update summary: {total_monitored} events monitored, "
+            f"Ã°Å¸â€œÅ  Update summary: {total_monitored} events monitored, "
             f"{imminent_count} imminent, {alerts_sent} alerts sent"
         )
 
@@ -627,10 +630,10 @@ class ValueBotMonitor:
                 if self.is_daily_start_time():
                     await self.daily_initialization()
                 
-                # Verificar si es hora de verificación de resultados (2 AM)
+                # Verificar si es hora de verificaciÃƒÂ³n de resultados (2 AM)
                 next_verification = self.get_next_verification_time()
                 if now.hour == 2 and now.minute < 5:  # Ventana de 5 minutos
-                    logger.info("🕰️ Hora de verificación de resultados (2 AM)")
+                    logger.info("Ã°Å¸â€¢Â°Ã¯Â¸Â Hora de verificaciÃƒÂ³n de resultados (2 AM)")
                     await self.verify_results()
                 
                 # Realizar actualizacin cada hora
