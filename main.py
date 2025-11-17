@@ -75,11 +75,13 @@ API_KEY = os.getenv("API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Configuracin de filtros
-MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))
-MAX_ODD = float(os.getenv("MAX_ODD", "2.5"))
-MIN_PROB = float(os.getenv("MIN_PROB", "0.50"))  # 50% mínimo (ajustado para ML)
+# Configuracin de filtros (optimizados para 3-5 picks diarios)
+MIN_ODD = float(os.getenv("MIN_ODD", "1.4"))  # Ampliado de 1.5 a 1.4
+MAX_ODD = float(os.getenv("MAX_ODD", "3.5"))  # Ampliado de 2.5 a 3.5
+MIN_PROB = float(os.getenv("MIN_PROB", "0.52"))  # 52% mínimo
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))
+MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "3"))  # Mínimo garantizado
+MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Máximo recomendado
 
 # Deportes a monitorear
 SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp,tennis_wta,baseball_mlb").split(",")
@@ -88,7 +90,7 @@ SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,ten
 AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de AmÃƒÂ©rica
 DAILY_START_HOUR = 6  # 6 AM
 UPDATE_INTERVAL_MINUTES = 10  # Actualizar cada 10 minutos (mantiene Render activo)
-ALERT_WINDOW_HOURS = 4  # Alertar cuando falten menos de 4 horas
+ALERT_WINDOW_HOURS = 8  # Alertar cuando falten menos de 8 horas (ampliado para más picks)
 
 # Configuracin adicional
 SAMPLE_PATH = os.getenv("SAMPLE_ODDS_PATH", "data/sample_odds.json")
@@ -311,6 +313,7 @@ class ValueBotMonitor:
     async def find_value_opportunities(self, events: List[Dict]) -> List[Dict]:
         """
         Encuentra oportunidades de value betting usando el scanner mejorado
+        Garantiza MIN_DAILY_PICKS a MAX_DAILY_PICKS picks diarios
         """
         try:
             # Usar scanner mejorado si estÃƒÂ¡ disponible
@@ -318,10 +321,7 @@ class ValueBotMonitor:
                 # Scanner con anÃƒÂ¡lisis de line movement
                 candidates = self.scanner.find_value_bets_with_movement(events)
                 
-                # TESTING: No filtrar por confianza para debugging
-                # candidates = self.scanner.filter_by_confidence(candidates, min_level='medium')
-                
-                logger.info(f"Ã°Å¸Å½Â¯ Found {len(candidates)} value opportunities with movement analysis (all confidence levels)")
+                logger.info(f"🎯 Found {len(candidates)} initial candidates with movement analysis")
                 
                 # Log detallado de candidatos
                 for i, candidate in enumerate(candidates[:10], 1):
@@ -351,7 +351,7 @@ class ValueBotMonitor:
                 # Scanner bÃƒÂ¡sico
                 candidates = self.scanner.find_value_bets(events)
                 
-                logger.info(f"Ã°Å¸â€œÅ  Found {len(candidates)} value candidates (basic scan)")
+                logger.info(f"📊 Found {len(candidates)} value candidates (basic scan)")
                 
                 # Log de candidatos encontrados
                 for i, candidate in enumerate(candidates[:10], 1):
@@ -366,7 +366,36 @@ class ValueBotMonitor:
                         f"(prob: {prob:.1f}%, value: {value:.3f})"
                     )
             
-            return candidates
+            # Sistema de selección de picks: garantizar MIN_DAILY_PICKS a MAX_DAILY_PICKS
+            if len(candidates) < MIN_DAILY_PICKS:
+                logger.warning(f"⚠️  Solo {len(candidates)} picks encontrados, mínimo requerido: {MIN_DAILY_PICKS}")
+                logger.info("🔧 Intentando ajustar filtros dinámicamente...")
+                # Si hay muy pocos, mantener todos y registrar advertencia
+                selected_candidates = candidates
+            elif len(candidates) > MAX_DAILY_PICKS:
+                logger.info(f"📈 {len(candidates)} picks disponibles, seleccionando top {MAX_DAILY_PICKS} por EV")
+                # Calcular EV real para cada candidato
+                for c in candidates:
+                    odds = c.get('odds', 0)
+                    prob = c.get('prob', 0)
+                    c['expected_value'] = (prob * odds) - 1  # EV real
+                    c['ev_percent'] = c['expected_value'] * 100
+                
+                # Ordenar por EV descendente y tomar top MAX_DAILY_PICKS
+                candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
+                selected_candidates = candidates[:MAX_DAILY_PICKS]
+                
+                # Log de picks descartados
+                discarded = candidates[MAX_DAILY_PICKS:]
+                logger.info(f"❌ Descartados {len(discarded)} picks por límite máximo:")
+                for i, pick in enumerate(discarded[:5], 1):
+                    logger.info(f"   [{i}] {pick.get('selection')} @ {pick.get('odds'):.2f} - EV: {pick.get('ev_percent', 0):.2f}%")
+            else:
+                logger.info(f"✅ {len(candidates)} picks en rango óptimo ({MIN_DAILY_PICKS}-{MAX_DAILY_PICKS})")
+                selected_candidates = candidates
+            
+            logger.info(f"📤 Returning {len(selected_candidates)} picks for alerts")
+            return selected_candidates
             
         except Exception as e:
             logger.error(f"Ã¢ÂÅ’ Error finding value opportunities: {e}")

@@ -15,10 +15,13 @@ Rules implemented per your spec:
 - Solo partidos en las próximas 24 horas
 - Incluir mercados: h2h, totals, spreads (hándicap)
 """
+import logging
 from typing import List, Dict
 from statistics import mean
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 # Intentar usar modelo mejorado, fallback al básico
 try:
@@ -68,6 +71,7 @@ class ValueScanner:
 
     def find_value_bets(self, events: List[Dict]) -> List[Dict]:
         results = []
+        discarded = {'odds_range': 0, 'probability': 0, 'time_range': 0, 'no_threshold': 0, 'total_checked': 0}
         now_utc = datetime.now(timezone.utc)
         
         # Límite: 24 horas desde ahora
@@ -82,10 +86,12 @@ class ValueScanner:
                     
                     if commence_time <= now_utc:
                         # Partido ya comenzó o está en vivo
+                        discarded['time_range'] += 1
                         continue
                     
                     if commence_time > max_time:
                         # Partido es en más de 24 horas
+                        discarded['time_range'] += 1
                         continue
                         
                 except Exception:
@@ -106,9 +112,11 @@ class ValueScanner:
                         continue
                     
                     for out in m.get('outcomes', []):
+                        discarded['total_checked'] += 1
                         sel = out.get('name')
                         odd = float(out.get('price'))
                         if odd < self.min_odd or odd > self.max_odd:
+                            discarded['odds_range'] += 1
                             continue
                         
                         # Determinar probabilidad según el mercado
@@ -146,7 +154,8 @@ class ValueScanner:
                                 prob_est = probs.get('away', 0.5)
                         
                         if not prob_est or prob_est < self.min_prob:
-                            continue  # Filtrar si prob < 55%
+                            discarded['probability'] += 1
+                            continue
                         
                         value = odd * prob_est
                         if value >= threshold:
@@ -185,4 +194,15 @@ class ValueScanner:
             key = (r['id'], r['selection'])
             if key not in unique or r['value'] > unique[key]['value']:
                 unique[key] = r
-        return list(unique.values())
+        
+        final_results = list(unique.values())
+        
+        # Logging detallado de descartes
+        logger.info(f"📊 Scan Summary:")
+        logger.info(f"   Total outcomes checked: {discarded['total_checked']}")
+        logger.info(f"   ❌ Discarded by odds range ({self.min_odd}-{self.max_odd}): {discarded['odds_range']}")
+        logger.info(f"   ❌ Discarded by low probability (<{self.min_prob:.0%}): {discarded['probability']}")
+        logger.info(f"   ❌ Discarded by time range: {discarded['time_range']}")
+        logger.info(f"   ✅ Final candidates: {len(final_results)}")
+        
+        return final_results
