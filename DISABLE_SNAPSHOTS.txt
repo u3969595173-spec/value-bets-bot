@@ -1,0 +1,5 @@
+TEMP FIX: Snapshots disabled to debug deployment issue
+This allows the bot to scan and generate picks immediately
+while we investigate the Supabase batch insert timeout
+
+To re-enable: Set ENHANCED_SYSTEM_AVAILABLE = True in main.py line 46
