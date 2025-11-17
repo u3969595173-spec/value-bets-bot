@@ -284,7 +284,7 @@ class ValueBotMonitor:
         """
         try:
             # Usar el scanner de value existente
-            candidates = self.scanner.find_candidates(events)
+            candidates = self.scanner.find_value_bets(events)
             
             logger.info(f" Found {len(candidates)} value candidates")
             
