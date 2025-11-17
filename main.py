@@ -452,7 +452,7 @@ class ValueBotMonitor:
             return 0
         
         # Obtener usuarios premium
-        users = self.users_manager.get_all_users()
+        users = list(self.users_manager.users.values())
         premium_users = [user for user in users if user.is_premium_active()]
         
         if not premium_users:
@@ -471,7 +471,7 @@ class ValueBotMonitor:
             alerts_sent_for_candidate = 0
             
             for user in premium_users:
-                # Verificar lmites
+                # Verificar límites
                 if not user.can_send_alert():
                     continue
                 
@@ -503,7 +503,7 @@ class ValueBotMonitor:
         self.alerts_state.reset_if_needed()
         
         # Reset de usuarios (contadores diarios)
-        users = self.users_manager.get_all_users()
+        users = list(self.users_manager.users.values())
         for user in users:
             user._check_reset()  # Reset contadores diarios
         
