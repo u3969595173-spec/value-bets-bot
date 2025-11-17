@@ -178,20 +178,20 @@ class ValueBotMonitor:
     
     async def verify_results(self):
         """
-        Verifica resultados de predicciones pendientes
+        Verifica resultados de predicciones pendientes usando auto-verificación
         """
-        if not ENHANCED_SYSTEM_AVAILABLE:
-            logger.warning("Sistema mejorado no disponible, saltando verificación")
+        if not ENHANCED_SYSTEM_AVAILABLE or not API_KEY:
+            logger.warning("Sistema mejorado o API_KEY no disponible, saltando verificación")
             return
         
         try:
             logger.info("🔍 Iniciando verificación automática de resultados...")
             
-            # Importar el verificador
-            from scripts.verify_results import ResultsVerifier
+            # Importar el verificador automático
+            from verification.auto_verify import AutoVerifier
             
-            verifier = ResultsVerifier()
-            stats = verifier.verify_pending_predictions(days=2)
+            verifier = AutoVerifier(API_KEY)
+            stats = await verifier.verify_pending_predictions()
             
             # Log de resultados
             if stats['verified'] > 0:
@@ -202,17 +202,24 @@ class ValueBotMonitor:
                 logger.info(f"   • Accuracy: {accuracy:.1f}%")
                 logger.info(f"   • Profit: ${stats['total_profit']:+.2f}")
                 
-                # Notificar al admin
+                # Notificar al admin con resumen de 7 días
+                performance = verifier.get_performance_summary(days=7)
+                
                 report = f"""📊 **VERIFICACIÓN DIARIA DE RESULTADOS**
 
+🆕 **Últimas 24h:**
 ✅ Predicciones verificadas: {stats['verified']}
 🎯 Correctas: {stats['correct']}
 📈 Accuracy: {accuracy:.1f}%
 💰 Profit: ${stats['total_profit']:+.2f}
 
-⏳ Pendientes: {stats['still_pending']}"""
+📅 **Últimos 7 días:**
+🎲 Total: {performance.get('total_predictions', 0)}
+✅ Accuracy: {performance.get('accuracy', '0%')}
+💵 ROI: {performance.get('roi', '0%')}
+💰 Profit: {performance.get('total_profit', '$0')}"""
                 
-                await self.notifier.send_message(ADMIN_CHAT_ID, report)
+                await self.notifier.send_message(CHAT_ID, report)
             else:
                 logger.info("ℹ️ No hay predicciones para verificar")
                 

@@ -306,6 +306,47 @@ class HistoricalDatabase:
         except Exception as e:
             logger.error(f"Error fetching team injuries: {e}")
             return []
+    
+    # ==================== VERIFICATION ====================
+    
+    def get_unverified_predictions(self, before_time: str) -> List[Dict]:
+        """Obtener predicciones sin verificar de hace más de X horas"""
+        try:
+            response = self.supabase.table('predictions') \
+                .select('*') \
+                .is_('verified_at', 'null') \
+                .lt('predicted_at', before_time) \
+                .order('predicted_at', desc=False) \
+                .execute()
+            
+            return response.data
+            
+        except Exception as e:
+            logger.error(f"Error fetching unverified predictions: {e}")
+            return []
+    
+    def verify_prediction(self, prediction_id: str, was_correct: bool, 
+                         actual_home_score: int, actual_away_score: int,
+                         profit_loss: float) -> bool:
+        """Marca una predicción como verificada con su resultado"""
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            
+            data = {
+                'was_correct': was_correct,
+                'actual_home_score': actual_home_score,
+                'actual_away_score': actual_away_score,
+                'profit_loss': profit_loss,
+                'verified_at': now
+            }
+            
+            self.supabase.table('predictions').update(data).eq('id', prediction_id).execute()
+            logger.info(f"✅ Prediction {prediction_id[:8]}... verified: {was_correct}, P/L: ${profit_loss:+.2f}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error verifying prediction: {e}")
+            return False
 
 
 # Instancia global
