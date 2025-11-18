@@ -43,7 +43,7 @@ try:
     from scanner.ml_scanner import MLValueScanner
     from analytics.clv_tracker import clv_tracker
     from utils.kelly_criterion import kelly_calculator
-    ENHANCED_SYSTEM_AVAILABLE = False  # TEMP: Disabled to fix deployment
+    ENHANCED_SYSTEM_AVAILABLE = True  # Sistema mejorado con datos reales activado
 except ImportError:
     historical_db = None
     injury_scraper = None
