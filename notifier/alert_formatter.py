@@ -107,9 +107,11 @@ def format_free_alert(candidate: Dict) -> str:
     lines.append("🔍 **ANÁLISIS DETALLADO:**")
     
     if candidate.get('real_probability', 0) > 0:
-        lines.append(f"📊 **Probabilidad real:** {candidate['real_probability']:.0f}%")
-        lines.append(f"📉 **Prob. implícita casa:** {(100/candidate['odds']):.0f}%")
-        lines.append(f"💎 **Diferencia a tu favor:** +{candidate['real_probability']-(100/candidate['odds']):.1f}%")
+        real_prob_pct = candidate['real_probability'] * 100
+        implied_prob_pct = (100/candidate['odds'])
+        lines.append(f"📊 **Probabilidad real:** {real_prob_pct:.0f}%")
+        lines.append(f"📉 **Prob. implícita casa:** {implied_prob_pct:.0f}%")
+        lines.append(f"💎 **Diferencia a tu favor:** +{real_prob_pct - implied_prob_pct:.1f}%")
     
     # Análisis específico del mercado
     market_key = candidate.get('market_key', '')
@@ -249,11 +251,13 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     lines.append("📈 **ANÁLISIS PROFESIONAL DE VALOR:**")
     
     if candidate.get('real_probability', 0) > 0:
-        lines.append(f"✅ **Prob. Real:** {candidate['real_probability']:.1f}%")
+        real_prob_pct = candidate['real_probability'] * 100
+        lines.append(f"✅ **Prob. Real:** {real_prob_pct:.1f}%")
     
     if candidate.get('implied_probability', 0) > 0:
-        lines.append(f"📉 **Prob. Implícita:** {candidate['implied_probability']:.1f}%")
-        prob_diff = candidate.get('real_probability', 0) - candidate.get('implied_probability', 0)
+        implied_prob_pct = candidate['implied_probability'] * 100
+        lines.append(f"📉 **Prob. Implícita:** {implied_prob_pct:.1f}%")
+        prob_diff = real_prob_pct - implied_prob_pct
         if prob_diff > 0:
             lines.append(f"⚡ **Ventaja detectada:** +{prob_diff:.1f}% a tu favor")
     
