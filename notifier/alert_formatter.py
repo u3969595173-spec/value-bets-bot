@@ -40,15 +40,10 @@ def format_free_alert(candidate: Dict) -> str:
     # Formatear según el tipo de mercado DE FORMA CLARA
     lines.append("📋 **APUESTA:**")
     
-    # Probabilidad real si está disponible
-    prob_real = candidate.get('real_probability', 0)
-    
     if market_key == 'h2h':
         # Ganador directo
         lines.append(f"   ⚽ **Ganador:** {selection}")
         lines.append(f"   💰 **Cuota:** {odd:.2f}")
-        if prob_real > 0:
-            lines.append(f"   📊 **Probabilidad de acierto:** {prob_real:.0f}%")
         
     elif market_key == 'spreads':
         # Hándicap
@@ -56,8 +51,6 @@ def format_free_alert(candidate: Dict) -> str:
             lines.append(f"   🎯 **Equipo:** {selection}")
             lines.append(f"   📊 **Hándicap:** {point:+.1f} puntos")
             lines.append(f"   💰 **Cuota:** {odd:.2f}")
-            if prob_real > 0:
-                lines.append(f"   📊 **Probabilidad de acierto:** {prob_real:.0f}%")
             if point > 0:
                 lines.append(f"   ℹ️ {selection} puede perder hasta {abs(point)} pts")
             else:
@@ -65,8 +58,6 @@ def format_free_alert(candidate: Dict) -> str:
         else:
             lines.append(f"   🎯 **Hándicap:** {selection}")
             lines.append(f"   💰 **Cuota:** {odd:.2f}")
-            if prob_real > 0:
-                lines.append(f"   📊 **Probabilidad de acierto:** {prob_real:.0f}%")
             
     elif market_key == 'totals':
         # Totales (Over/Under)
@@ -178,15 +169,10 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     lines.append("")
     lines.append("📋 **APUESTA RECOMENDADA:**")
     
-    # Probabilidad real
-    prob_real = candidate.get('real_probability', 0)
-    
     if market_key == 'h2h':
         # Ganador directo
         lines.append(f"   ⚽ **Ganador:** {selection}")
         lines.append(f"   💰 **Cuota:** {odd:.2f}")
-        if prob_real > 0:
-            lines.append(f"   🎯 **Probabilidad de acierto:** {prob_real:.0f}%")
         
     elif market_key == 'spreads':
         # Hándicap
@@ -194,8 +180,6 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
             lines.append(f"   🎯 **Equipo:** {selection}")
             lines.append(f"   📊 **Hándicap:** {point:+.1f} puntos")
             lines.append(f"   💰 **Cuota:** {odd:.2f}")
-            if prob_real > 0:
-                lines.append(f"   🎯 **Probabilidad de acierto:** {prob_real:.0f}%")
             if point > 0:
                 lines.append(f"   ℹ️ {selection} puede perder hasta {abs(point)} pts y ganas")
             else:
@@ -203,12 +187,6 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
         else:
             lines.append(f"   🎯 **Hándicap:** {selection}")
             lines.append(f"   💰 **Cuota:** {odd:.2f}")
-            if prob_real > 0:
-                lines.append(f"   🎯 **Probabilidad de acierto:** {prob_real:.0f}%")
-            lines.append(f"   🎯 **Hándicap:** {selection}")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
-            if prob_real > 0:
-                lines.append(f"   📊 **Probabilidad de acierto:** {prob_real:.0f}%")
             
     elif market_key == 'totals':
         # Totales (Over/Under)
