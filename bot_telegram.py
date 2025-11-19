@@ -899,7 +899,7 @@ async def notify_admin_withdrawal(context: ContextTypes.DEFAULT_TYPE, user_id: s
 
 def main():
     global application
-    schedule_weekly_referral_rewards()
+    # schedule_weekly_referral_rewards()  # Temporalmente desactivado - causa conflicto con event loop
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("mi_posicion", mi_posicion_command))
     application.add_handler(CommandHandler("start", cmd_start))
@@ -916,7 +916,7 @@ def main():
     logger.info("Bot de comandos iniciado correctamente!")
     logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats")
     logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude")
-    schedule_summaries()
+    # schedule_summaries()  # Temporalmente desactivado - causa conflicto con event loop
     
     # Simplemente iniciar el bot sin configuraciones especiales
     application.run_polling()
