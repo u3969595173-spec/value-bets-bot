@@ -30,8 +30,9 @@ class ReferralSystem:
     # Configuración de recompensas
     COMMISSION_PERCENTAGE = 10.0  # 10% de comisión por referido
     PREMIUM_PRICE_EUR = 15.0  # Precio semanal de Premium (euros)
+    PREMIUM_PRICE_USD = 15.0  # Precio semanal de Premium (euros, misma moneda)
     FREE_WEEK_THRESHOLD = 3  # 3 referidos pagos = 1 semana gratis
-    REWARD_PER_REFERRAL = PREMIUM_PRICE_USD * (COMMISSION_PERCENTAGE / 100)  # $5 por referido
+    REWARD_PER_REFERRAL = PREMIUM_PRICE_USD * (COMMISSION_PERCENTAGE / 100)  # 1.5€ por referido
     
     def __init__(self, data_file: str = "data/referrals.json"):
         """
