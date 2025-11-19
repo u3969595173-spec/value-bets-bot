@@ -69,8 +69,7 @@ class User:
         saldo_comision: float = 0.0,
         suscripcion_fin: str = None,
         total_commission_earned: float = 0.0,
-        free_weeks_earned: int = 0
-    ):
+        free_weeks_earned: int = 0,
         # Bank dinámico semanal
         dynamic_bank: float = 200.0,
         dynamic_bank_last_reset: str = None
@@ -104,19 +103,6 @@ class User:
         # Bank dinámico semanal
         self.dynamic_bank = dynamic_bank
         self.dynamic_bank_last_reset = dynamic_bank_last_reset or self._get_current_date()
-            """Reinicia el bank dinámico a 200€ si es lunes y no se ha reiniciado hoy."""
-            from datetime import datetime
-            import pytz
-            today = datetime.now().date()
-            last_reset = None
-            try:
-                last_reset = datetime.fromisoformat(self.dynamic_bank_last_reset).date()
-            except Exception:
-                last_reset = today
-            # Lunes = 0
-            if today.weekday() == 0 and last_reset != today:
-                self.dynamic_bank = 200.0
-                self.dynamic_bank_last_reset = today.isoformat()
     
     def _get_current_date(self) -> str:
         """Obtiene la fecha actual en formato YYYY-MM-DD en timezone configurado."""
