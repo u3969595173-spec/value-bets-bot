@@ -43,24 +43,6 @@ RESET_HOUR = 6  # 6 AM Eastern
 
 
 class User:
-        def get_dynamic_stake(self) -> float:
-            """Devuelve el stake fijo del 10% del bank dinámico (10€ por defecto)."""
-            return round(self.dynamic_bank * 0.10, 2)
-
-        def update_dynamic_bank(self, bet_result: Dict):
-            """Actualiza el bank dinámico tras el resultado de una apuesta con stake fijo."""
-            self.reset_dynamic_bank_if_needed()
-            stake = 10.0  # Siempre stake 10€
-            odd = bet_result.get('odd', 0)
-            won = bet_result.get('won', False)
-            if won:
-                profit = stake * (odd - 1)
-                self.dynamic_bank += profit
-            else:
-                self.dynamic_bank -= stake
-            # No permitir bank negativo
-            if self.dynamic_bank < 0:
-                self.dynamic_bank = 0.0
     """Representa un usuario del sistema."""
     
     def __init__(
