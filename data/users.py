@@ -34,7 +34,7 @@ PREMIUM_WEEK_DAYS = 7  # Duración de una semana premium
 
 # Configuración de comisiones (NUEVO SISTEMA)
 PREMIUM_PRICE_EUR = float(os.getenv("PREMIUM_PRICE_EUR", "15.0"))  # 15€ semanales
-PREMIUM_PRICE_USD = float(os.getenv("PREMIUM_PRICE_USD", "15.0"))  # 15 USD semanales (mismo valor)
+PREMIUM_PRICE_USD = PREMIUM_PRICE_EUR  # Alias para compatibilidad (mismo valor en €)
 COMMISSION_PERCENTAGE = float(os.getenv("COMMISSION_PERCENTAGE", "10.0"))  # 10% comisión
 PAID_REFERRALS_FOR_FREE_WEEK = int(os.getenv("PAID_REFERRALS_FOR_FREE_WEEK", "3"))  # 3 referidos pagos = 1 semana gratis
 
