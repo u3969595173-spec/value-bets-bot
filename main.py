@@ -178,13 +178,22 @@ class ValueBotMonitor:
     async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /start - muestra botones permanentes"""
         chat_id = str(update.effective_chat.id)
-        username = update.effective_user.username or update.effective_user.first_name
+        # CORREGIDO: Siempre guardar @username si existe
+        username = update.effective_user.username  # username real de Telegram
+        display_name = f"@{username}" if username else update.effective_user.first_name
         
         # Registrar usuario si no existe
         user = self.users_manager.get_user(chat_id)
         if not user:
-            user = self.users_manager.add_user(chat_id, username)
-            logger.info(f"Nuevo usuario registrado: {username} ({chat_id})")
+            # Guardar el username real (sin @)
+            user = self.users_manager.add_user(chat_id, username or update.effective_user.first_name)
+            logger.info(f"Nuevo usuario registrado: {display_name} (ID: {chat_id})")
+        else:
+            # Actualizar username si cambió
+            if username and user.username != username:
+                user.username = username
+                self.users_manager.save()
+                logger.info(f"Username actualizado: {display_name} (ID: {chat_id})")
         
         is_admin = (chat_id == CHAT_ID)
         keyboard = self.get_main_keyboard(is_admin)
@@ -192,7 +201,7 @@ class ValueBotMonitor:
         welcome_msg = f"""
 🎯 ¡Bienvenido a Value Bets Bot!
 
-👋 Hola @{username}
+👋 Hola {display_name}
 
 📊 **Sistema Activo:**
 • Monitoreo cada 30 minutos
@@ -374,7 +383,7 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             await update.message.reply_text("No entiendo ese comando. Usa los botones 👇")
     
     async def handle_activar_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler para /activar @username"""
+        """Handler para /activar @username o ID o nombre"""
         chat_id = str(update.effective_chat.id)
         
         if chat_id != CHAT_ID:
@@ -382,25 +391,38 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             return
         
         if len(context.args) == 0:
-            await update.message.reply_text("Uso: /activar @username")
+            await update.message.reply_text("Uso: /activar @username o /activar chat_id o /activar nombre")
             return
         
-        target_username = context.args[0].replace("@", "")
-        target_user = self.users_manager.get_user_by_username(target_username)
+        target_input = context.args[0].replace("@", "")
+        
+        # Intentar buscar: primero por username, luego por nombre, luego por ID
+        target_user = self.users_manager.get_user_by_username(target_input)
         
         if not target_user:
-            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            # Buscar por nombre (case-insensitive)
+            for user in self.users_manager.users.values():
+                if user.username.lower() == target_input.lower():
+                    target_user = user
+                    break
+        
+        if not target_user:
+            # Buscar por chat_id
+            target_user = self.users_manager.get_user(target_input)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario '{target_input}' no encontrado. Usa @username, nombre o chat_id")
             return
         
         target_user.nivel = "premium"
         target_user.is_permanent_premium = True
         self.users_manager.save_users()
         
-        await update.message.reply_text(f"✅ @{target_username} ahora es Premium")
-        logger.info(f"Admin activó premium para @{target_username}")
+        await update.message.reply_text(f"✅ @{target_user.username} (ID: {target_user.chat_id}) ahora es Premium")
+        logger.info(f"Admin activó premium para @{target_user.username}")
     
     async def handle_marcar_pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler para /pago @username"""
+        """Handler para /pago @username o ID o nombre"""
         chat_id = str(update.effective_chat.id)
         
         if chat_id != CHAT_ID:
@@ -408,11 +430,22 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             return
         
         if len(context.args) == 0:
-            await update.message.reply_text("Uso: /pago @username")
+            await update.message.reply_text("Uso: /pago @username o /pago chat_id o /pago nombre")
             return
         
-        target_username = context.args[0].replace("@", "")
-        target_user = self.users_manager.get_user_by_username(target_username)
+        target_input = context.args[0].replace("@", "")
+        
+        # Buscar usuario (username, nombre o ID)
+        target_user = self.users_manager.get_user_by_username(target_input)
+        
+        if not target_user:
+            for user in self.users_manager.users.values():
+                if user.username.lower() == target_input.lower():
+                    target_user = user
+                    break
+        
+        if not target_user:
+            target_user = self.users_manager.get_user(target_input)
         
         if not target_user:
             await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
