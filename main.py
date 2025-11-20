@@ -163,7 +163,8 @@ class ValueBotMonitor:
                 [KeyboardButton("📊 Mis Stats"), KeyboardButton("💰 Mis Referidos")],
                 [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")],
                 [KeyboardButton("⚡ Activar Premium"), KeyboardButton("💵 Marcar Pago")],
-                [KeyboardButton("🔄 Reiniciar Saldo"), KeyboardButton("🔁 Reset Alertas")]
+                [KeyboardButton("🔄 Reiniciar Saldo"), KeyboardButton("🔁 Reset Alertas")],
+                [KeyboardButton("💎 Lista Premium")]
             ]
         else:
             keyboard = [
@@ -333,6 +334,10 @@ class ValueBotMonitor:
             elif text == "🔁 Reset Alertas":
                 msg = "Para resetear alertas de un usuario:\n\n`/reset_alertas @username`\n\nEjemplo: `/reset_alertas @juan123`"
                 await update.message.reply_text(msg)
+            
+            elif text == "💎 Lista Premium":
+                # Llamar al handler de lista premium directamente
+                await self.handle_lista_premium(update, context)
         
         else:
             # Mensaje desconocido
@@ -441,6 +446,83 @@ class ValueBotMonitor:
         await update.message.reply_text(f"✅ Contador de alertas de @{target_username} reiniciado")
         logger.info(f"Admin reinició alertas de @{target_username}")
     
+    async def handle_lista_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /lista_premium - muestra todos los usuarios premium con deudas"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        # Obtener todos los usuarios
+        all_users = list(self.users_manager.users.values())
+        premium_users = [u for u in all_users if u.is_premium_active()]
+        
+        if not premium_users:
+            await update.message.reply_text("No hay usuarios premium actualmente.")
+            return
+        
+        # Crear reporte detallado
+        report = "💎 **LISTA DE USUARIOS PREMIUM**\n"
+        report += f"Total: {len(premium_users)} usuarios\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        total_adeudado = 0.0
+        
+        for i, user in enumerate(premium_users, 1):
+            username = user.username or f"ID:{user.chat_id}"
+            pago_base = 15.0  # PREMIUM_PRICE_EUR
+            comision_refs = user.accumulated_balance
+            total_user = pago_base + comision_refs
+            total_adeudado += total_user
+            
+            report += f"**{i}. @{username}**\n"
+            report += f"   • ID: `{user.chat_id}`\n"
+            report += f"   • Pago base: {pago_base:.2f}€\n"
+            report += f"   • Comisión refs: {comision_refs:.2f}€\n"
+            report += f"   • **Total: {total_user:.2f}€**\n"
+            report += f"   • Referidos: {len(user.referrals)}\n\n"
+        
+        report += "━━━━━━━━━━━━━━━━━━━━━\n"
+        report += f"💰 **TOTAL A COBRAR: {total_adeudado:.2f}€**\n"
+        report += f"\n📅 Próximo reset: Lunes 06:00 AM"
+        
+        # Enviar reporte (dividir si es muy largo)
+        if len(report) > 4000:
+            # Dividir en mensajes más pequeños
+            parts = []
+            current_part = "💎 **LISTA DE USUARIOS PREMIUM**\n"
+            current_part += f"Total: {len(premium_users)} usuarios\n"
+            current_part += "━━━━━━━━━━━━━━━━━━━━━\n\n"
+            
+            for i, user in enumerate(premium_users, 1):
+                username = user.username or f"ID:{user.chat_id}"
+                pago_base = 15.0
+                comision_refs = user.accumulated_balance
+                total_user = pago_base + comision_refs
+                
+                user_info = f"**{i}. @{username}**\n"
+                user_info += f"   • ID: `{user.chat_id}`\n"
+                user_info += f"   • Total: {total_user:.2f}€ (base: {pago_base:.2f}€ + refs: {comision_refs:.2f}€)\n\n"
+                
+                if len(current_part) + len(user_info) > 3800:
+                    parts.append(current_part)
+                    current_part = ""
+                
+                current_part += user_info
+            
+            if current_part:
+                current_part += "━━━━━━━━━━━━━━━━━━━━━\n"
+                current_part += f"💰 **TOTAL A COBRAR: {total_adeudado:.2f}€**"
+                parts.append(current_part)
+            
+            for part in parts:
+                await update.message.reply_text(part)
+        else:
+            await update.message.reply_text(report)
+        
+        logger.info(f"Admin solicitó lista premium: {len(premium_users)} usuarios, total: {total_adeudado:.2f}€")
+    
     def setup_telegram_handlers(self):
         """Configura los handlers de Telegram para botones y comandos"""
         if not self.telegram_app:
@@ -452,6 +534,7 @@ class ValueBotMonitor:
         self.telegram_app.add_handler(CommandHandler("pago", self.handle_marcar_pago))
         self.telegram_app.add_handler(CommandHandler("reset_saldo", self.handle_reset_saldo))
         self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))
+        self.telegram_app.add_handler(CommandHandler("lista_premium", self.handle_lista_premium))
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
