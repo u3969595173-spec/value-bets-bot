@@ -235,6 +235,28 @@ class ValueBotMonitor:
                 user.username = username
                 self.users_manager.save()
                 logger.info(f"Username actualizado: {display_name} (ID: {chat_id})")
+            
+            # CORREGIR: Asignar referrer si se detectó código y el usuario aún NO tiene referrer
+            if referrer_id and (not hasattr(user, 'referrer_id') or not user.referrer_id):
+                user.referrer_id = referrer_id
+                referrer = self.users_manager.get_user(referrer_id)
+                if referrer:
+                    if not hasattr(referrer, 'referred_users'):
+                        referrer.referred_users = []
+                    if chat_id not in referrer.referred_users:
+                        referrer.referred_users.append(chat_id)
+                    self.users_manager.save()
+                    logger.info(f"✅ Referral asignado retroactivamente: @{referrer.username} → @{user.username}")
+                    
+                    # Notificar al referrer
+                    try:
+                        msg = f"🎉 **¡Nuevo referido!**\n\n"
+                        msg += f"👤 Usuario: @{user.username}\n"
+                        msg += f"💰 Ganarás 10% de comisión cuando active Premium\n"
+                        msg += f"🏆 Además, participas en el reparto semanal del 20% de ganancias"
+                        await self.notifier.send_message(referrer_id, msg)
+                    except Exception as e:
+                        logger.error(f"Error notificando a referrer {referrer_id}: {e}")
         
         is_admin = (chat_id == CHAT_ID)
         keyboard = self.get_main_keyboard(is_admin)
