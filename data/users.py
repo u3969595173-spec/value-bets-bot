@@ -94,7 +94,10 @@ class User:
         week_start_date: str = None,
         # Sistema de control de pagos
         payment_status: str = "pending",  # "pending", "paid"
-        last_payment_date: str = None
+        last_payment_date: str = None,
+        # Timestamps de Supabase (ignorar)
+        created_at: str = None,
+        updated_at: str = None
     ):
         self.chat_id = chat_id
         self.username = username
