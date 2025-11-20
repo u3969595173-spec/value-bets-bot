@@ -84,7 +84,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 # Configuracin de filtros (optimizados para exactamente 5 picks premium + 1 gratis)
 MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))  # Cuotas mínimas más estrictas
 MAX_ODD = float(os.getenv("MAX_ODD", "3.0"))  # Cuotas máximas más conservadoras
-MIN_PROB = float(os.getenv("MIN_PROB", "0.58"))  # 58% mínimo ultra-profesional
+MIN_PROB = float(os.getenv("MIN_PROB", "0.60"))  # 60% inicial, baja hasta 52% si es necesario
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))  # Exactamente 5 para premium
 MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "3"))  # Mínimo garantizado: 3
 MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Máximo: 5 picks
@@ -1424,80 +1424,54 @@ Tu saldo sigue disponible.
                         f"(prob: {prob:.1f}%, value: {value:.3f})"
                     )
             
-            # Sistema de selección de picks: garantizar MIN_DAILY_PICKS (3) a MAX_DAILY_PICKS (5)
-            if len(candidates) < MIN_DAILY_PICKS:
-                logger.warning(f"⚠️  Solo {len(candidates)} picks con filtros ultra-profesionales")
-                logger.info(f"🔧 RELAJACIÓN PROGRESIVA para alcanzar mínimo {MIN_DAILY_PICKS}...")
+            # Sistema adaptativo: garantizar 5 picks bajando probabilidad gradualmente
+            target_picks = 5
+            if len(candidates) < target_picks:
+                logger.warning(f"⚠️  Solo {len(candidates)} picks al 60%")
+                logger.info(f"🔧 BAJANDO PROBABILIDAD GRADUALMENTE para alcanzar {target_picks} picks...")
                 
-                # NIVEL 1: Relajar confidence a 50 (mantener line movement)
-                if len(candidates) < MIN_DAILY_PICKS:
-                    logger.info("📊 Nivel 1: Relajando confidence a 50...")
-                    relaxed_candidates = self.scanner.find_value_bets_with_movement(events) if ENHANCED_SYSTEM_AVAILABLE else self.scanner.find_value_bets(events)
-                    
-                    # Filtrar con confidence 50 (en vez de 60)
-                    level1_candidates = [c for c in relaxed_candidates if c.get('confidence_score', 0) >= 50]
-                    if REQUIRE_LINE_MOVEMENT:
-                        level1_candidates = [c for c in level1_candidates if c.get('line_movement') is not None]
-                    
-                    logger.info(f"   Resultado Nivel 1: {len(level1_candidates)} picks")
-                    candidates.extend([c for c in level1_candidates if c not in candidates])
+                # Bajar de 60% → 58% → 56% → 54% → 52%
+                prob_levels = [0.58, 0.56, 0.54, 0.52]
                 
-                # NIVEL 2: Relajar line movement (opcional en vez de obligatorio)
-                if len(candidates) < MIN_DAILY_PICKS:
-                    logger.info("📊 Nivel 2: Line movement opcional...")
+                for prob_level in prob_levels:
+                    if len(candidates) >= target_picks:
+                        break
+                    
+                    logger.info(f"📊 Intentando con prob mínima: {prob_level*100:.0f}%...")
+                    
                     relaxed_scanner = EnhancedValueScanner(
-                        min_odd=1.5,
-                        max_odd=3.0,
-                        min_prob=0.55  # Mantener 55%
+                        min_odd=MIN_ODD,
+                        max_odd=MAX_ODD,
+                        min_prob=prob_level
                     ) if ENHANCED_SYSTEM_AVAILABLE else ValueScanner(
-                        min_odd=1.5,
-                        max_odd=3.0,
-                        min_prob=0.55
+                        min_odd=MIN_ODD,
+                        max_odd=MAX_ODD,
+                        min_prob=prob_level
                     )
                     
                     if ENHANCED_SYSTEM_AVAILABLE:
-                        level2_candidates = relaxed_scanner.find_value_bets_with_movement(events)
+                        new_candidates = relaxed_scanner.find_value_bets_with_movement(events)
                     else:
-                        level2_candidates = relaxed_scanner.find_value_bets(events)
+                        new_candidates = relaxed_scanner.find_value_bets(events)
                     
-                    # Filtrar solo por confidence >=50 y value >=1.10
-                    level2_candidates = [c for c in level2_candidates 
-                                       if c.get('confidence_score', 0) >= 50 
-                                       and c.get('value', 0) >= 1.10]
+                    # Añadir solo los que no están ya en la lista
+                    for c in new_candidates:
+                        if c not in candidates:
+                            candidates.append(c)
                     
-                    logger.info(f"   Resultado Nivel 2: {len(level2_candidates)} picks")
-                    candidates.extend([c for c in level2_candidates if c not in candidates])
+                    logger.info(f"   ✅ Total acumulado: {len(candidates)} picks")
                 
-                # NIVEL 3: Filtros básicos (si aún falta)
-                if len(candidates) < MIN_DAILY_PICKS:
-                    logger.info("📊 Nivel 3: Filtros básicos profesionales...")
-                    basic_scanner = ValueScanner(
-                        min_odd=1.4,
-                        max_odd=3.5,
-                        min_prob=0.52  # 52% mínimo
-                    )
-                    level3_candidates = basic_scanner.find_value_bets(events)
-                    
-                    # Solo añadir los mejores por EV
-                    for c in level3_candidates:
-                        c['expected_value'] = (c.get('prob', 0) * c.get('odds', 0)) - 1
-                    
-                    level3_candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
-                    logger.info(f"   Resultado Nivel 3: {len(level3_candidates)} picks")
-                    candidates.extend([c for c in level3_candidates[:10] if c not in candidates])
-                
-                logger.info(f"✅ Total después de relajación: {len(candidates)} picks")
-                
-                # Ordenar todos por EV y tomar los mejores
-                for c in candidates:
-                    if 'expected_value' not in c:
-                        c['expected_value'] = (c.get('prob', 0) * c.get('odds', 0)) - 1
-                
-                candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
-                selected_candidates = candidates[:MAX_DAILY_PICKS]
-                
-            elif len(candidates) > MAX_DAILY_PICKS:
-                logger.info(f"📈 {len(candidates)} picks disponibles, seleccionando top {MAX_DAILY_PICKS} por EV")
+                logger.info(f"🎯 RESULTADO FINAL: {len(candidates)} picks encontrados")
+            
+            # Ordenar por valor (value) y seleccionar top 5
+            if len(candidates) > target_picks:
+                logger.info(f"📈 {len(candidates)} picks encontrados, seleccionando top {target_picks} por valor")
+                candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
+                selected_candidates = candidates[:target_picks]
+            else:
+                selected_candidates = candidates
+            
+            logger.info(f"✅ Picks seleccionados para envío: {len(selected_candidates)}")
                 # Calcular EV real para cada candidato
                 for c in candidates:
                     odds = c.get('odds', 0)
@@ -1518,7 +1492,14 @@ Tu saldo sigue disponible.
                 logger.info(f"✅ {len(candidates)} picks en rango óptimo ({MIN_DAILY_PICKS}-{MAX_DAILY_PICKS})")
                 selected_candidates = candidates
             
-            logger.info(f"📤 Returning {len(selected_candidates)} picks for alerts")
+            
+            logger.info(f"📤 Returning {len(selected_candidates)} picks para alertas")
+            
+            # El pick de mayor valor va para usuarios free (será el primero después de ordenar)
+            if selected_candidates:
+                logger.info(f"🎯 Pick #1 (mayor valor {selected_candidates[0].get('value', 0):.3f}) → Usuarios FREE")
+                logger.info(f"💎 Picks #2-5 → Usuarios PREMIUM")
+            
             return selected_candidates
             
         except Exception as e:
