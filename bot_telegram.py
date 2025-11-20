@@ -1239,6 +1239,23 @@ async def main_async():
     try:
         await application.initialize()
         await application.start()
+        
+        # Agregar error handler para conflictos
+        async def error_handler(update, context):
+            """Maneja errores durante la ejecución del bot"""
+            error = context.error
+            if "Conflict" in str(error):
+                logger.error("❌ CONFLICT: Otra instancia detectada. Deteniendo bot...")
+                # Detener el updater y salir
+                if application.updater.running:
+                    await application.updater.stop()
+                import sys
+                sys.exit(1)
+            else:
+                logger.error(f"Error en bot: {error}", exc_info=context.error)
+        
+        application.add_error_handler(error_handler)
+        
         await application.updater.start_polling(drop_pending_updates=True)
         
         logger.info("✅ Bot de comandos corriendo...")
@@ -1260,11 +1277,14 @@ async def main_async():
             raise
     finally:
         # Cleanup
-        if application.updater.running:
-            await application.updater.stop()
-        if application.running:
-            await application.stop()
-        await application.shutdown()
+        try:
+            if application.updater.running:
+                await application.updater.stop()
+            if application.running:
+                await application.stop()
+            await application.shutdown()
+        except Exception as e:
+            logger.error(f"Error durante cleanup: {e}")
 
 if __name__ == '__main__':
     main()

@@ -27,18 +27,15 @@ def run_http_server():
     server.serve_forever()
 
 async def run_both_bots():
-    """Ejecuta ambos bots en paralelo - ambos son async"""
-    import bot_telegram
+    """Ejecuta solo el bot de predicciones (comandos deshabilitado por conflictos)"""
     import main
     
-    print("[RUN_RENDER v4] ✅ Arrancando bot de COMANDOS (bot_telegram.py)...")
     print("[RUN_RENDER v4] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
+    print("[RUN_RENDER v4] ⚠️ Bot de comandos deshabilitado para evitar conflictos")
+    print("[RUN_RENDER v4] ℹ️ Si necesitas comandos, corre bot_telegram.py por separado")
     
-    # Ejecutar ambos bots en paralelo con asyncio.gather()
-    await asyncio.gather(
-        bot_telegram.main_async(),  # Bot de comandos (async)
-        main.main()                  # Bot de predicciones (async)
-    )
+    # Solo ejecutar el bot de predicciones
+    await main.main()
 
 if __name__ == "__main__":
     print("[RUN_RENDER v4] Iniciando bot completo: Comandos + Pronósticos con HTTP health server...")
