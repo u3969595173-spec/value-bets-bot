@@ -77,13 +77,23 @@ class ValueScanner:
         max_time = now_utc + timedelta(hours=24)
         for ev in events:
             # Filtrar partidos: solo en las próximas 24 horas
-            commence_str = ev.get('commence_time')
-            if commence_str:
+            commence_value = ev.get('commence_time')
+            if commence_value:
                 try:
-                    # Normalizar formato: reemplazar espacio por T si es necesario
-                    if ' ' in commence_str and 'T' not in commence_str:
-                        commence_str = commence_str.replace(' ', 'T')
-                    commence_time = datetime.fromisoformat(commence_str.replace('Z', '+00:00'))
+                    # Si ya es datetime, usarlo directamente
+                    if isinstance(commence_value, datetime):
+                        commence_time = commence_value
+                        # Asegurar que tiene timezone
+                        if commence_time.tzinfo is None:
+                            commence_time = commence_time.replace(tzinfo=timezone.utc)
+                    else:
+                        # Es string, parsearlo
+                        commence_str = str(commence_value)
+                        # Normalizar formato: reemplazar espacio por T si es necesario
+                        if ' ' in commence_str and 'T' not in commence_str:
+                            commence_str = commence_str.replace(' ', 'T')
+                        commence_time = datetime.fromisoformat(commence_str.replace('Z', '+00:00'))
+                    
                     if commence_time <= now_utc:
                         discarded['time_range'] += 1
                         continue
@@ -91,7 +101,7 @@ class ValueScanner:
                         discarded['time_range'] += 1
                         continue
                 except Exception as e:
-                    logger.warning(f"[SCANNER] No se pudo parsear commence_time: {commence_str} - {e}")
+                    logger.warning(f"[SCANNER] No se pudo parsear commence_time: {commence_value} - {e}")
                     continue
             else:
                 logger.warning(f"[SCANNER] Evento sin commence_time: {ev.get('id')}")
