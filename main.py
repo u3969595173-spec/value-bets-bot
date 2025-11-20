@@ -166,27 +166,61 @@ class ValueBotMonitor:
                 [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")],
                 [KeyboardButton("⚡ Activar Premium"), KeyboardButton("💵 Marcar Pago")],
                 [KeyboardButton("🔄 Reiniciar Saldo"), KeyboardButton("🔁 Reset Alertas")],
-                [KeyboardButton("💎 Lista Premium")]
+                [KeyboardButton("💎 Lista Premium"), KeyboardButton("🏆 Ranking Referidos")]
             ]
         else:
             keyboard = [
                 [KeyboardButton("📊 Mis Stats"), KeyboardButton("💰 Mis Referidos")],
-                [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")]
+                [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")],
+                [KeyboardButton("🏆 Ranking Referidos"), KeyboardButton("🎁 Canjear Semana")],
+                [KeyboardButton("💵 Retirar Ganancias")]
             ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
     async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler para /start - muestra botones permanentes"""
+        """Handler para /start - muestra botones permanentes y procesa referrals"""
         chat_id = str(update.effective_chat.id)
         # CORREGIDO: Siempre guardar @username si existe
         username = update.effective_user.username  # username real de Telegram
         display_name = f"@{username}" if username else update.effective_user.first_name
+        
+        # Procesar código de referido si existe
+        referrer_id = None
+        if context.args and len(context.args) > 0:
+            referral_code = context.args[0]
+            # Buscar referrer por chat_id
+            referrer = self.users_manager.get_user(referral_code)
+            if referrer:
+                referrer_id = referral_code
+                logger.info(f"🔗 Referral detectado: {referral_code} → nuevo usuario {chat_id}")
         
         # Registrar usuario si no existe
         user = self.users_manager.get_user(chat_id)
         if not user:
             # Guardar el username real (sin @)
             user = self.users_manager.add_user(chat_id, username or update.effective_user.first_name)
+            
+            # Asignar referrer si existe
+            if referrer_id:
+                user.referrer_id = referrer_id
+                referrer = self.users_manager.get_user(referrer_id)
+                if referrer:
+                    if not hasattr(referrer, 'referred_users'):
+                        referrer.referred_users = []
+                    referrer.referred_users.append(chat_id)
+                    self.users_manager.save()
+                    logger.info(f"✅ Referral establecido: @{referrer.username} → @{user.username}")
+                    
+                    # Notificar al referrer
+                    try:
+                        msg = f"🎉 **¡Nuevo referido!**\n\n"
+                        msg += f"👤 Usuario: @{user.username}\n"
+                        msg += f"💰 Ganarás 10% de comisión cuando active Premium\n"
+                        msg += f"🏆 Además, participas en el reparto semanal del 20% de ganancias"
+                        await self.notifier.send_message(referrer_id, msg)
+                    except Exception as e:
+                        logger.error(f"Error notificando a referrer {referrer_id}: {e}")
+            
             logger.info(f"Nuevo usuario registrado: {display_name} (ID: {chat_id})")
         else:
             # Actualizar username si cambió
@@ -276,9 +310,33 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         # Referidos
         elif text == "💰 Mis Referidos":
             referral_link = f"https://t.me/{context.bot.username}?start={chat_id}"
-            total_refs = len(user.referrals)
             
-            refs_list = "\n".join([f"• @{r}" for r in user.referrals[:10]]) if user.referrals else "Ninguno aún"
+            # Contar referidos totales y premium
+            total_refs = len(user.referred_users) if hasattr(user, 'referred_users') else 0
+            premium_refs = 0
+            if hasattr(user, 'referred_users'):
+                for ref_id in user.referred_users:
+                    ref_user = self.users_manager.get_user(ref_id)
+                    if ref_user and ref_user.is_premium_active():
+                        premium_refs += 1
+            
+            # Lista de referidos (mostrar primeros 10)
+            refs_list = ""
+            if hasattr(user, 'referred_users') and user.referred_users:
+                for ref_id in user.referred_users[:10]:
+                    ref_user = self.users_manager.get_user(ref_id)
+                    if ref_user:
+                        status = "💎" if ref_user.is_premium_active() else "👤"
+                        refs_list += f"{status} @{ref_user.username}\n"
+            else:
+                refs_list = "Ninguno aún"
+            
+            # Ganancias de referidos esta semana
+            weekly_earnings = getattr(user, 'weekly_referral_earnings', 0.0)
+            
+            # Actualizar semanas gratis disponibles
+            user.update_free_weeks()
+            free_weeks = getattr(user, 'free_weeks_available', 0)
             
             msg = f"""
 💰 **Sistema de Referidos**
@@ -286,17 +344,69 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
 🔗 **Tu link personal:**
 `{referral_link}`
 
-👥 Referidos totales: {total_refs}
-💵 Ganancia acumulada: {user.accumulated_balance:.2f}€
+👥 **Tus referidos:**
+• Total: {total_refs}
+• Premium activos: {premium_refs}
 
-📋 **Tus referidos:**
+🎁 **Semanas gratis:**
+• Disponibles: {free_weeks}
+• Progreso: {premium_refs % 5}/5 para próxima semana
+• (5 premium = 1 semana gratis)
+
+💵 **Ganancias:**
+• Esta semana: {weekly_earnings:.2f}€
+• Total acumulado: {user.accumulated_balance:.2f}€
+
+📋 **Lista de referidos:**
 {refs_list}
 
 💡 **Beneficios:**
-• 20% de las ganancias de cada referido
-• Se acumula semanalmente
-• Pago junto con tu tarifa base
+• 10% de comisión por cada premium
+• Participas en reparto del 20% de ganancias
+• Top 3 referrers ganan más cada semana
 """
+            await update.message.reply_text(msg)
+        
+        # Ranking de Referidos
+        elif text == "🏆 Ranking Referidos":
+            users = list(self.users_manager.users.values())
+            
+            # Calcular stats de referidos
+            referrers_stats = []
+            for u in users:
+                if hasattr(u, 'referred_users') and u.referred_users:
+                    premium_count = 0
+                    for ref_id in u.referred_users:
+                        ref_user = self.users_manager.get_user(ref_id)
+                        if ref_user and ref_user.is_premium_active():
+                            premium_count += 1
+                    
+                    if premium_count > 0:
+                        weekly_earnings = getattr(u, 'weekly_referral_earnings', 0.0)
+                        referrers_stats.append({
+                            'username': u.username,
+                            'total_refs': len(u.referred_users),
+                            'premium_refs': premium_count,
+                            'weekly_earnings': weekly_earnings
+                        })
+            
+            # Ordenar por premium refs
+            referrers_stats.sort(key=lambda x: x['premium_refs'], reverse=True)
+            
+            if not referrers_stats:
+                msg = "🏆 **Ranking de Referidos**\n\n❌ Aún no hay referrers con usuarios premium"
+            else:
+                msg = "🏆 **RANKING DE REFERIDOS**\n\n"
+                msg += "Top referrers con usuarios premium activos:\n\n"
+                
+                for i, stat in enumerate(referrers_stats[:10], 1):
+                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                    msg += f"{medal} @{stat['username']}\n"
+                    msg += f"   💎 Premium: {stat['premium_refs']} | Total: {stat['total_refs']}\n"
+                    msg += f"   💰 Esta semana: {stat['weekly_earnings']:.2f}€\n\n"
+                
+                msg += "\n💡 Reparto: 🥇50% 🥈30% 🥉20% del 50% de ganancias semanales"
+            
             await update.message.reply_text(msg)
         
         # Perfil
@@ -319,6 +429,168 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
 """
             await update.message.reply_text(msg)
         
+        # Botón Canjear Semana Gratis
+        elif text == "🎁 Canjear Semana":
+            # Actualizar semanas disponibles
+            user.update_free_weeks()
+            free_weeks = getattr(user, 'free_weeks_available', 0)
+            
+            if free_weeks <= 0:
+                msg = """
+🎁 **Canjear Semana Gratis**
+
+❌ No tienes semanas gratis disponibles.
+
+📊 **Cómo ganar semanas:**
+• Cada 5 referidos premium = 1 semana gratis
+• Invita amigos con tu link personal
+• Cuando sean premium, acumulas progreso
+
+💡 Ve a "💰 Mis Referidos" para ver tu progreso
+"""
+            elif getattr(user, 'pending_redemption', False):
+                msg = """
+🎁 **Canjear Semana Gratis**
+
+⏳ Ya tienes una solicitud pendiente de aprobación.
+
+El admin revisará tu solicitud pronto.
+"""
+            else:
+                # Marcar solicitud pendiente
+                user.pending_redemption = True
+                self.users_manager.save()
+                
+                # Notificar al admin
+                try:
+                    admin_msg = f"""
+🎁 **SOLICITUD DE CANJE - SEMANA GRATIS**
+
+👤 Usuario: @{user.username}
+🆔 ID: `{chat_id}`
+📊 Referidos premium: {user.calculate_free_weeks_earned() * 5}
+🎁 Semanas disponibles: {free_weeks}
+
+¿Aprobar canje de 1 semana premium gratis?
+
+Responde con:
+`/aprobar_canje {chat_id}` - Aprobar
+`/rechazar_canje {chat_id}` - Rechazar
+"""
+                    await self.notifier.send_message(CHAT_ID, admin_msg)
+                except Exception as e:
+                    logger.error(f"Error notificando admin sobre canje: {e}")
+                
+                msg = """
+🎁 **Solicitud Enviada** ✅
+
+Tu solicitud de canje ha sido enviada al admin.
+Recibirás una notificación cuando sea aprobada.
+
+⏳ Tiempo de respuesta: Normalmente < 24h
+"""
+            
+            await update.message.reply_text(msg)
+        
+        # Botón Retirar Ganancias
+        elif text == "💵 Retirar Ganancias":
+            balance = getattr(user, 'accumulated_balance', 0.0)
+            pending = getattr(user, 'pending_withdrawal', False)
+            
+            if pending:
+                msg = """
+💵 **Retiro de Ganancias**
+
+⏳ Ya tienes una solicitud de retiro pendiente.
+
+El admin la revisará pronto. Te notificaremos cuando esté lista.
+"""
+            elif balance <= 0:
+                msg = """
+💵 **Retiro de Ganancias**
+
+❌ No tienes saldo disponible para retirar.
+
+💡 **Cómo ganar:**
+• Invita amigos con tu link de referidos
+• Ganas 10% por cada referido premium
+• Participa en el reparto semanal (top 3)
+
+Ve a "💰 Mis Referidos" para ver tu link
+"""
+            else:
+                msg = f"""
+💵 **Retiro de Ganancias**
+
+💰 **Saldo disponible:** {balance:.2f}€
+
+¿Deseas solicitar el retiro de TODO tu saldo?
+
+💡 Una vez aprobado por el admin:
+• Recibirás tu pago
+• Tu saldo se reiniciará a 0€
+• Podrás seguir acumulando
+
+Responde con: **RETIRAR** para confirmar
+"""
+            
+            await update.message.reply_text(msg)
+        
+        # Confirmación de retiro
+        elif text.upper() == "RETIRAR":
+            balance = getattr(user, 'accumulated_balance', 0.0)
+            pending = getattr(user, 'pending_withdrawal', False)
+            
+            if pending:
+                await update.message.reply_text("⏳ Ya tienes un retiro pendiente.")
+                return
+            
+            if balance <= 0:
+                await update.message.reply_text("❌ No tienes saldo disponible.")
+                return
+            
+            # Marcar retiro como pendiente
+            user.pending_withdrawal = True
+            user.withdrawal_amount = balance
+            self.users_manager.save()
+            
+            # Notificar al admin
+            try:
+                admin_msg = f"""
+💰 **SOLICITUD DE RETIRO**
+
+👤 Usuario: @{user.username}
+🆔 ID: `{chat_id}`
+💵 Monto solicitado: {balance:.2f}€
+
+📊 **Info del usuario:**
+• Referidos totales: {len(user.referred_users) if hasattr(user, 'referred_users') else 0}
+• Premium activos: {sum(1 for ref_id in (user.referred_users if hasattr(user, 'referred_users') else []) if self.users_manager.get_user(ref_id) and self.users_manager.get_user(ref_id).is_premium_active())}
+
+¿Aprobar retiro?
+
+Comandos:
+`/aprobar_retiro {chat_id}` - Aprobar y pagar
+`/rechazar_retiro {chat_id}` - Rechazar
+"""
+                await self.notifier.send_message(CHAT_ID, admin_msg)
+            except Exception as e:
+                logger.error(f"Error notificando admin sobre retiro: {e}")
+            
+            msg = """
+✅ **Solicitud Enviada**
+
+Tu solicitud de retiro ha sido enviada al admin.
+
+⏳ **Próximos pasos:**
+1. Admin revisa tu solicitud
+2. Procesa el pago
+3. Confirma y tu saldo se reinicia
+
+📱 Te notificaremos cuando esté listo
+"""
+            await update.message.reply_text(msg)
+        
         # Estado Premium
         elif text == "💳 Estado Premium":
             if user.is_premium_active():
@@ -329,7 +601,7 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
 • 5 picks premium al día
 • Filtros ultra-profesionales
 • Alertas prioritarias
-• Sistema de referidos 20%
+• Sistema de referidos 10%
 
 💰 **Pagos:**
 • Base semanal: 15€
@@ -348,7 +620,7 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
 
 💎 **Upgrade a Premium:**
 • 5 picks diarios profesionales
-• Sistema de referidos (20%)
+• Sistema de referidos (10%)
 • Filtros ultra-estrictos
 • Solo 15€/semana
 
@@ -647,6 +919,239 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         await update.message.reply_text(report)
         logger.info(f"Admin solicitó stats reales: {stats['won']}W-{stats['lost']}L, ROI: {stats['roi']:.1f}%")
     
+    async def handle_aprobar_canje(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /aprobar_canje - aprueba canje de semana gratis"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text("❌ Uso: /aprobar_canje <user_id>")
+            return
+        
+        target_user_id = context.args[0]
+        target_user = self.users_manager.get_user(target_user_id)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario {target_user_id} no encontrado")
+            return
+        
+        # Verificar que tenga semanas disponibles
+        target_user.update_free_weeks()
+        free_weeks = getattr(target_user, 'free_weeks_available', 0)
+        
+        if free_weeks <= 0:
+            await update.message.reply_text(f"❌ @{target_user.username} no tiene semanas gratis disponibles")
+            return
+        
+        # Activar premium por 1 semana
+        target_user.nivel = "premium"
+        target_user.is_permanent_premium = True  # Temporal durante 1 semana
+        
+        # Descontar semana gratis
+        if not hasattr(target_user, 'free_weeks_redeemed'):
+            target_user.free_weeks_redeemed = 0
+        target_user.free_weeks_redeemed += 1
+        target_user.free_weeks_available = max(0, free_weeks - 1)
+        target_user.pending_redemption = False
+        
+        self.users_manager.save()
+        
+        # Notificar al usuario
+        try:
+            user_msg = """
+🎉 **¡CANJE APROBADO!** ✅
+
+Tu semana premium GRATIS ha sido activada.
+
+💎 **Beneficios activos:**
+• 5 picks premium al día
+• Filtros ultra-profesionales
+• Alertas prioritarias
+• Sistema de referidos
+
+📅 **Duración:** 7 días desde ahora
+
+¡Disfruta tu semana premium! 🚀
+"""
+            await self.notifier.send_message(target_user_id, user_msg)
+        except Exception as e:
+            logger.error(f"Error notificando usuario {target_user_id}: {e}")
+        
+        # Confirmar al admin
+        await update.message.reply_text(
+            f"✅ Canje aprobado para @{target_user.username}\n"
+            f"Premium activado por 1 semana\n"
+            f"Semanas restantes: {target_user.free_weeks_available}"
+        )
+        logger.info(f"Admin aprobó canje de semana gratis para {target_user_id}")
+    
+    async def handle_rechazar_canje(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /rechazar_canje - rechaza canje de semana gratis"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text("❌ Uso: /rechazar_canje <user_id>")
+            return
+        
+        target_user_id = context.args[0]
+        target_user = self.users_manager.get_user(target_user_id)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario {target_user_id} no encontrado")
+            return
+        
+        # Limpiar solicitud pendiente
+        target_user.pending_redemption = False
+        self.users_manager.save()
+        
+        # Notificar al usuario
+        try:
+            user_msg = """
+❌ **Canje No Aprobado**
+
+Tu solicitud de canje de semana gratis no fue aprobada.
+
+Posibles razones:
+• No cumples requisitos actuales
+• Error en el conteo de referidos
+• Otra razón específica
+
+📞 Contacta al admin para más información.
+"""
+            await self.notifier.send_message(target_user_id, user_msg)
+        except Exception as e:
+            logger.error(f"Error notificando usuario {target_user_id}: {e}")
+        
+        # Confirmar al admin
+        await update.message.reply_text(f"✅ Canje rechazado para @{target_user.username}")
+        logger.info(f"Admin rechazó canje de semana gratis para {target_user_id}")
+    
+    async def handle_aprobar_retiro(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /aprobar_retiro - aprueba retiro de ganancias"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text("❌ Uso: /aprobar_retiro <user_id>")
+            return
+        
+        target_user_id = context.args[0]
+        target_user = self.users_manager.get_user(target_user_id)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario {target_user_id} no encontrado")
+            return
+        
+        if not getattr(target_user, 'pending_withdrawal', False):
+            await update.message.reply_text(f"❌ @{target_user.username} no tiene retiro pendiente")
+            return
+        
+        withdrawal_amount = getattr(target_user, 'withdrawal_amount', 0.0)
+        
+        # Registrar retiro en historial
+        if not hasattr(target_user, 'withdrawal_history'):
+            target_user.withdrawal_history = []
+        
+        target_user.withdrawal_history.append({
+            'date': datetime.now(timezone.utc).isoformat(),
+            'amount': withdrawal_amount,
+            'status': 'approved'
+        })
+        
+        # Reiniciar saldo a 0
+        target_user.accumulated_balance = 0.0
+        target_user.pending_withdrawal = False
+        target_user.withdrawal_amount = 0.0
+        
+        self.users_manager.save()
+        
+        # Notificar al usuario
+        try:
+            user_msg = f"""
+✅ **¡RETIRO APROBADO!**
+
+💰 **Monto:** {withdrawal_amount:.2f}€
+
+El pago ha sido procesado.
+Tu saldo se ha reiniciado a 0€.
+
+¡Sigue invitando amigos para seguir ganando! 🚀
+
+💡 Tu link de referidos está en "💰 Mis Referidos"
+"""
+            await self.notifier.send_message(target_user_id, user_msg)
+        except Exception as e:
+            logger.error(f"Error notificando usuario {target_user_id}: {e}")
+        
+        # Confirmar al admin
+        await update.message.reply_text(
+            f"✅ Retiro aprobado para @{target_user.username}\n"
+            f"💰 Monto: {withdrawal_amount:.2f}€\n"
+            f"Saldo reiniciado a 0€"
+        )
+        logger.info(f"Admin aprobó retiro de {withdrawal_amount:.2f}€ para {target_user_id}")
+    
+    async def handle_rechazar_retiro(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /rechazar_retiro - rechaza retiro de ganancias"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text("❌ Uso: /rechazar_retiro <user_id>")
+            return
+        
+        target_user_id = context.args[0]
+        target_user = self.users_manager.get_user(target_user_id)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario {target_user_id} no encontrado")
+            return
+        
+        if not getattr(target_user, 'pending_withdrawal', False):
+            await update.message.reply_text(f"❌ @{target_user.username} no tiene retiro pendiente")
+            return
+        
+        # Limpiar solicitud pendiente
+        target_user.pending_withdrawal = False
+        target_user.withdrawal_amount = 0.0
+        self.users_manager.save()
+        
+        # Notificar al usuario
+        try:
+            user_msg = """
+❌ **Retiro No Aprobado**
+
+Tu solicitud de retiro no fue aprobada.
+
+Posibles razones:
+• Verificación de datos pendiente
+• Información incorrecta
+• Otra razón específica
+
+📞 Contacta al admin para más información.
+Tu saldo sigue disponible.
+"""
+            await self.notifier.send_message(target_user_id, user_msg)
+        except Exception as e:
+            logger.error(f"Error notificando usuario {target_user_id}: {e}")
+        
+        # Confirmar al admin
+        await update.message.reply_text(f"✅ Retiro rechazado para @{target_user.username}")
+        logger.info(f"Admin rechazó retiro para {target_user_id}")
+    
     def setup_telegram_handlers(self):
         """Configura los handlers de Telegram para botones y comandos"""
         if not self.telegram_app:
@@ -660,6 +1165,10 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))
         self.telegram_app.add_handler(CommandHandler("lista_premium", self.handle_lista_premium))
         self.telegram_app.add_handler(CommandHandler("stats_reales", self.handle_stats_reales))
+        self.telegram_app.add_handler(CommandHandler("aprobar_canje", self.handle_aprobar_canje))
+        self.telegram_app.add_handler(CommandHandler("rechazar_canje", self.handle_rechazar_canje))
+        self.telegram_app.add_handler(CommandHandler("aprobar_retiro", self.handle_aprobar_retiro))
+        self.telegram_app.add_handler(CommandHandler("rechazar_retiro", self.handle_rechazar_retiro))
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
@@ -1094,18 +1603,36 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             
             # Registrar alerta en el tracker para verificación posterior
             tracker = get_alerts_tracker()
+            
+            # Usar línea y cuota ajustadas si existen
+            final_odds = candidate.get('odds', odds)
+            final_point = candidate.get('point')
+            final_selection = candidate.get('selection', '')
+            
+            # Guardar también info de línea original si fue ajustada
+            original_info = {}
+            if candidate.get('was_adjusted'):
+                original_info = {
+                    'original_odds': candidate.get('original_odds'),
+                    'original_point': candidate.get('original_point'),
+                    'was_adjusted': True
+                }
+            
             tracker.add_alert(
                 user_id=user.chat_id,
                 event_id=candidate.get('id', ''),
                 sport=candidate.get('sport_key', ''),
                 pick_type=candidate.get('market', 'h2h'),
-                selection=candidate.get('selection', ''),
-                odds=odds,
+                selection=final_selection,
+                odds=final_odds,  # Usar cuota ajustada
                 stake=stake,
-                point=candidate.get('point'),
-                game_time=candidate.get('commence_time')
+                point=final_point,  # Usar punto ajustado
+                game_time=candidate.get('commence_time'),
+                **original_info  # Añadir info de ajuste si existe
             )
-            logger.info(f"✅ Alert tracked for verification: {candidate.get('selection')}")
+            logger.info(f"✅ Alert tracked for verification: {final_selection} @ {final_odds:.2f}")
+            if candidate.get('was_adjusted'):
+                logger.info(f"   📊 Línea ajustada desde {candidate.get('original_point')} @ {candidate.get('original_odds'):.2f}")
             
             # SISTEMA MEJORADO: Guardar predicciÃƒÂ³n en BD
             if ENHANCED_SYSTEM_AVAILABLE and historical_db:
@@ -1157,6 +1684,26 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         if not value_candidates:
             logger.info("No value opportunities in imminent events")
             return 0
+        
+        # Añadir información de bookmakers completa a cada candidato
+        for candidate in value_candidates:
+            event_id = candidate.get('id')
+            if event_id:
+                # Buscar evento original en monitored_events para obtener bookmakers completos
+                for monitored_event in imminent_events:
+                    if monitored_event.get('id') == event_id:
+                        candidate['event_bookmakers'] = monitored_event.get('bookmakers', [])
+                        break
+        
+        # Ajustar líneas si cuotas > 2.1
+        from utils.line_adjuster import adjust_line_if_needed
+        adjusted_candidates = []
+        for candidate in value_candidates:
+            event_bookmakers = candidate.get('event_bookmakers', [])
+            adjusted = adjust_line_if_needed(candidate, event_bookmakers)
+            adjusted_candidates.append(adjusted)
+        
+        value_candidates = adjusted_candidates
         
         # Obtener usuarios premium y gratuitos
         users = list(self.users_manager.users.values())
@@ -1321,6 +1868,8 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         Reset semanal (lunes 06:00 AM):
         - Quitar premium a usuarios que no pagaron
         - Resetear estados de pago a 'pending'
+        - Calcular 20% de ganancias semanales
+        - Distribuir 50% a admin y 50% a top 3 referrers
         - Resetear saldos de comisiones
         """
         logger.info("🔄 WEEKLY RESET - Lunes 06:00 AM")
@@ -1330,7 +1879,91 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         
         removed_count = 0
         reset_count = 0
+        total_profit_share = 0.0
         
+        # Calcular 20% de ganancias de todos los usuarios premium
+        for user in premium_users:
+            # Calcular ganancia semanal (bank actual - bank inicio semana)
+            current_bank = getattr(user, 'dynamic_bank', 200.0)
+            week_start = getattr(user, 'week_start_bank', 200.0)
+            weekly_profit = current_bank - week_start
+            
+            if weekly_profit > 0:
+                # 20% de las ganancias
+                fee_due = weekly_profit * 0.20
+                user.weekly_fee_due = fee_due
+                user.weekly_profit = weekly_profit
+                total_profit_share += fee_due
+                logger.info(f"💰 @{user.username} ganó {weekly_profit:.2f}€ → debe {fee_due:.2f}€ (20%)")
+            else:
+                user.weekly_fee_due = 0.0
+                user.weekly_profit = weekly_profit
+                logger.info(f"📊 @{user.username} profit: {weekly_profit:.2f}€ (sin cargo)")
+            
+            # Resetear bank inicio semana para nueva semana
+            user.week_start_bank = current_bank
+        
+        # Distribuir 50% a admin y 50% a top 3 referrers
+        if total_profit_share > 0:
+            bot_share = total_profit_share * 0.50
+            referrers_share = total_profit_share * 0.50
+            
+            logger.info(f"💵 Total 20% ganancias: {total_profit_share:.2f}€")
+            logger.info(f"🤖 Bot share (50%): {bot_share:.2f}€")
+            logger.info(f"👥 Referrers share (50%): {referrers_share:.2f}€")
+            
+            # Calcular top 3 referrers por cantidad de referidos premium
+            referrers_stats = []
+            for user in users:
+                if user.referred_users:
+                    premium_referrals = [
+                        u for u in user.referred_users 
+                        if self.users_manager.get_user(u) and self.users_manager.get_user(u).is_premium_active()
+                    ]
+                    if premium_referrals:
+                        referrers_stats.append({
+                            'user': user,
+                            'premium_count': len(premium_referrals),
+                            'referred_ids': premium_referrals
+                        })
+            
+            # Ordenar por cantidad de premium referrals
+            referrers_stats.sort(key=lambda x: x['premium_count'], reverse=True)
+            top_3 = referrers_stats[:3]
+            
+            if top_3:
+                # Distribuir con incentivos: 50%, 30%, 20%
+                percentages = [0.50, 0.30, 0.20]
+                medals = ["🥇", "🥈", "🥉"]
+                
+                logger.info(f"🏆 TOP 3 REFERRERS:")
+                for i, ref_stat in enumerate(top_3):
+                    ref_user = ref_stat['user']
+                    percentage = percentages[i]
+                    earnings = referrers_share * percentage
+                    ref_user.weekly_referral_earnings = earnings
+                    
+                    logger.info(f"   {i+1}. @{ref_user.username}: {ref_stat['premium_count']} premium → {earnings:.2f}€ ({int(percentage*100)}%)")
+                    
+                    # Notificar al referrer
+                    try:
+                        msg = f"{medals[i]} **¡Felicidades! Eres TOP {i+1} Referrer**\n\n"
+                        msg += f"📊 Referidos Premium activos: {ref_stat['premium_count']}\n"
+                        msg += f"💰 Tu parte: {int(percentage*100)}% = {earnings:.2f}€\n\n"
+                        if i == 0:
+                            msg += f"🏆 ¡Increíble! Como #1 te llevas el 50% del reparto\n"
+                        elif i == 1:
+                            msg += f"💪 ¡Muy bien! Como #2 ganas el 30% del reparto\n"
+                        else:
+                            msg += f"👏 ¡Excelente! Como #3 obtienes el 20% del reparto\n"
+                        msg += f"\nSigue invitando usuarios premium para seguir ganando! 🚀"
+                        await self.notifier.send_message(ref_user.chat_id, msg)
+                    except Exception as e:
+                        logger.error(f"Error notificando a referrer {ref_user.chat_id}: {e}")
+            else:
+                logger.info("ℹ️ No hay referrers activos con premium referrals")
+        
+        # Procesar usuarios premium (remover o resetear)
         for user in premium_users:
             payment_status = getattr(user, 'payment_status', 'pending')
             
@@ -1355,6 +1988,7 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             else:
                 # Si pagó, resetear estado para nueva semana
                 user.payment_status = 'pending'
+                user.weekly_fee_paid = False
                 reset_count += 1
                 logger.info(f"✅ Estado reseteado: @{user.username} (ID: {user.chat_id}) - Sigue activo")
         
@@ -1403,40 +2037,63 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
                 
                 verified_count += 1
                 
-                # Calcular profit/loss
+                # Calcular profit/loss CON CUOTA AJUSTADA
                 stake = alert['stake']
-                odds = alert['odds']
+                odds = alert['odds']  # Esta es la cuota ajustada que se envió
                 
                 if result == 'won':
                     profit_loss = stake * (odds - 1)
                     won_count += 1
+                    emoji = "✅"
                 elif result == 'lost':
                     profit_loss = -stake
                     lost_count += 1
+                    emoji = "❌"
                 else:
                     profit_loss = 0
                     push_count += 1
+                    emoji = "🔄"
+                
+                # Log si era línea ajustada
+                if alert.get('was_adjusted'):
+                    logger.info(f"   📊 Línea ajustada verificada: {alert['selection']} @ {odds:.2f} (original: {alert.get('original_odds'):.2f})")
                 
                 # Actualizar tracker
                 tracker.update_alert_result(alert_id, result, profit_loss)
                 
-                # Actualizar bankroll del usuario
+                # Actualizar bankroll del usuario CON PROFIT/LOSS DE CUOTA AJUSTADA
                 user = self.users_manager.get_user(alert['user_id'])
                 if user and hasattr(user, 'dynamic_bank'):
+                    old_bank = user.dynamic_bank
                     user.dynamic_bank += profit_loss
-                    logger.info(f"   💰 User {alert['user_id']}: {result.upper()} → {profit_loss:+.2f}€")
+                    logger.info(f"   💰 User {alert['user_id']}: {result.upper()} @ {odds:.2f} → {profit_loss:+.2f}€ (Bank: {old_bank:.2f} → {user.dynamic_bank:.2f})")
+                    if alert.get('was_adjusted'):
+                        logger.info(f"      🔧 Resultado basado en línea ajustada (no original)")
                 
                 # Notificar resultado
                 try:
                     if result == 'won':
-                        msg = f"✅ **PICK GANADOR**\n\n🎯 {alert['selection']}\n💰 Ganancia: +{profit_loss:.2f}€"
+                        msg = f"✅ **PICK GANADOR**\n\n🎯 {alert['selection']}"
+                        if alert.get('point'):
+                            msg += f" {alert['point']}"
+                        msg += f"\n💰 Cuota: {odds:.2f}"
+                        msg += f"\n💵 Ganancia: +{profit_loss:.2f}€"
+                        if alert.get('was_adjusted'):
+                            msg += f"\n📊 (Línea ajustada desde {alert.get('original_point')} @ {alert.get('original_odds'):.2f})"
                     elif result == 'lost':
-                        msg = f"❌ **PICK PERDIDO**\n\n🎯 {alert['selection']}\n💸 Pérdida: {profit_loss:.2f}€"
+                        msg = f"❌ **PICK PERDIDO**\n\n🎯 {alert['selection']}"
+                        if alert.get('point'):
+                            msg += f" {alert['point']}"
+                        msg += f"\n💰 Cuota: {odds:.2f}"
+                        msg += f"\n💸 Pérdida: {profit_loss:.2f}€"
                     else:
-                        msg = f"🔄 **EMPATE (Push)**\n\n🎯 {alert['selection']}\n💰 Stake devuelto"
+                        msg = f"🔄 **EMPATE (Push)**\n\n🎯 {alert['selection']}"
+                        if alert.get('point'):
+                            msg += f" {alert['point']}"
+                        msg += f"\n💰 Stake devuelto: {stake:.2f}€"
                     
                     if user and hasattr(user, 'dynamic_bank'):
-                        msg += f"\n📊 Bankroll: {user.dynamic_bank:.2f}€"
+                        msg += f"\n\n📊 **Bankroll actual:** {user.dynamic_bank:.2f}€"
                     
                     await self.notifier.send_message(alert['user_id'], msg)
                 except Exception as e:

@@ -50,34 +50,60 @@ class AlertsTracker:
     def add_alert(self, user_id: str, event_id: str, sport: str, 
                   pick_type: str, selection: str, odds: float,
                   stake: float, point: Optional[float] = None,
-                  game_time: Optional[str] = None) -> str:
+                  game_time: Optional[str] = None,
+                  was_adjusted: bool = False,
+                  original_odds: Optional[float] = None,
+                  original_point: Optional[float] = None) -> str:
         """
         Registra una nueva alerta enviada
         
+        Args:
+            user_id: ID del usuario
+            event_id: ID del evento
+            sport: Deporte
+            pick_type: Tipo de mercado (h2h, spreads, totals)
+            selection: Selección (equipo/jugador)
+            odds: Cuota AJUSTADA (la que se envió al usuario)
+            stake: Cantidad apostada
+            point: Punto/línea AJUSTADA (la que se envió)
+            game_time: Hora del partido
+            was_adjusted: Si la línea fue ajustada
+            original_odds: Cuota original antes de ajustar
+            original_point: Punto original antes de ajustar
+            
         Returns:
             alert_id único
         """
         alert_id = f"{user_id}_{event_id}_{datetime.now(timezone.utc).timestamp()}"
         
-        self.alerts[alert_id] = {
+        alert_data = {
             'user_id': user_id,
             'event_id': event_id,
             'sport': sport,
             'pick_type': pick_type,
             'selection': selection,
-            'odds': odds,
+            'odds': odds,  # Cuota ajustada
             'stake': stake,
-            'point': point,
+            'point': point,  # Punto ajustado
             'game_time': game_time,
+            'status': 'pending',
             'sent_at': datetime.now(timezone.utc).isoformat(),
-            'status': 'pending',  # pending/won/lost/push
             'verified_at': None,
-            'final_result': None,
-            'profit_loss': None
+            'result': None,
+            'profit_loss': 0.0,
+            # Info de ajuste
+            'was_adjusted': was_adjusted,
+            'original_odds': original_odds,
+            'original_point': original_point
         }
         
+        self.alerts[alert_id] = alert_data
         self._save_alerts()
-        logger.info(f"Alert tracked: {alert_id}")
+        
+        logger.info(f"📝 Alert registered: {selection} @ {odds:.2f} for user {user_id}")
+        if was_adjusted:
+            logger.info(f"   🔧 Adjusted from {original_point} @ {original_odds:.2f}")
+        
         return alert_id
     
     def update_alert_result(self, alert_id: str, result: str, 
@@ -88,7 +114,7 @@ class AlertsTracker:
         Args:
             alert_id: ID de la alerta
             result: 'won', 'lost', 'push'
-            profit_loss: Ganancia/pérdida en euros
+            profit_loss: Ganancia/pérdida calculada con cuota AJUSTADA
         """
         if alert_id not in self.alerts:
             logger.warning(f"Alert {alert_id} not found")
