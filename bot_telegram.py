@@ -1140,6 +1140,11 @@ async def cmd_reiniciar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ============================================================================
 
 def main():
+    """Versión sync del bot (compatibilidad)"""
+    asyncio.run(main_async())
+
+async def main_async():
+    """Versión async del bot para correr en paralelo con main.py"""
     global application
     application = Application.builder().token(BOT_TOKEN).build()
     
@@ -1203,12 +1208,22 @@ def main():
     logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats, /mi_deuda")
     logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude, /marcar_pago")
     
-    # Iniciar bot con manejo de errores de conflicto
+    # Inicializar y arrancar bot de forma async
     try:
-        application.run_polling(
-            drop_pending_updates=True,  # Ignorar updates pendientes al iniciar
-            close_loop=False
-        )
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(drop_pending_updates=True)
+        
+        logger.info("✅ Bot de comandos corriendo...")
+        
+        # Mantener el bot corriendo indefinidamente
+        try:
+            # Esperar indefinidamente mientras el bot está activo
+            while True:
+                await asyncio.sleep(3600)  # Sleep 1 hora, se despertará con las actualizaciones
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Deteniendo bot de comandos...")
+        
     except Exception as e:
         if "Conflict" in str(e):
             logger.error("❌ CONFLICT ERROR: Otra instancia está corriendo. Cerrando esta instancia...")
@@ -1216,6 +1231,13 @@ def main():
             sys.exit(1)
         else:
             raise
+    finally:
+        # Cleanup
+        if application.updater.running:
+            await application.updater.stop()
+        if application.running:
+            await application.stop()
+        await application.shutdown()
 
 if __name__ == '__main__':
     main()
