@@ -2199,15 +2199,70 @@ Tu saldo sigue disponible.
                     candidate['value'] = pinnacle_odd * prob
                     candidate['implied_probability'] = 1.0 / pinnacle_odd if pinnacle_odd > 0 else 0
             
-            # PASO 2: Luego intentar ajustar línea si es necesario
-            adjusted = adjust_line_if_needed(candidate, event_bookmakers)
+            # PASO 2: Intentar ajustar línea si es necesario (MODO ESTRICTO primero)
+            adjusted = adjust_line_if_needed(candidate, event_bookmakers, use_relaxed=False)
             
-            # Si line_adjuster retorna None, significa que el pick es muy arriesgado y debe rechazarse
+            # Si line_adjuster retorna None, guardar para segunda pasada
             if adjusted is None:
-                logger.warning(f"❌ Pick rechazado por line_adjuster (odds > 2.1 sin alternativa segura)")
+                logger.debug(f"⏸️ Pick rechazado en modo estricto, guardando para fallback")
                 continue
             
             adjusted_candidates.append(adjusted)
+        
+        # Si NO hay picks con filtro estricto, hacer SEGUNDA PASADA con filtro relajado (2.5)
+        if not adjusted_candidates:
+            logger.warning(f"⚠️ No hay picks con filtro estricto (≤2.1)")
+            logger.info(f"🔄 SEGUNDA PASADA con filtro relajado (≤2.5)...")
+            
+            for candidate in value_candidates:
+                event_id = candidate.get('id', '')
+                event_bookmakers = []
+                
+                for event in events:
+                    if event.get('id') == event_id:
+                        event_bookmakers = event.get('bookmakers', [])
+                        break
+                
+                if not event_bookmakers:
+                    continue
+                
+                # Buscar Pinnacle
+                pinnacle_odd = None
+                for bookmaker in event_bookmakers:
+                    if bookmaker.get('key') == 'pinnacle':
+                        for market in bookmaker.get('markets', []):
+                            if market.get('key') == candidate.get('market_key'):
+                                for outcome in market.get('outcomes', []):
+                                    if outcome.get('name') == candidate.get('selection'):
+                                        point_match = True
+                                        if candidate.get('point') is not None:
+                                            point_match = outcome.get('point') == candidate.get('point')
+                                        
+                                        if point_match:
+                                            pinnacle_odd = outcome.get('price')
+                                            break
+                
+                if pinnacle_odd:
+                    candidate['odds'] = pinnacle_odd
+                    candidate['bookmaker'] = 'Pinnacle'
+                    
+                    prob = candidate.get('prob', 0)
+                    if prob > 0:
+                        candidate['value'] = pinnacle_odd * prob
+                        candidate['implied_probability'] = 1.0 / pinnacle_odd if pinnacle_odd > 0 else 0
+                
+                # Ajustar con filtro RELAJADO (2.5)
+                adjusted = adjust_line_if_needed(candidate, event_bookmakers, use_relaxed=True)
+                
+                if adjusted is not None:
+                    adjusted_candidates.append(adjusted)
+            
+            if adjusted_candidates:
+                logger.info(f"✅ {len(adjusted_candidates)} picks encontrados con filtro relajado")
+            else:
+                logger.info(f"❌ No hay picks ni con filtro relajado (≤2.5)")
+        else:
+            logger.info(f"✅ {len(adjusted_candidates)} picks con filtro estricto (≤2.1)")
         
         value_candidates = adjusted_candidates
         

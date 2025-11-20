@@ -9,25 +9,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MAX_ODD_THRESHOLD = 2.1  # Si cuota > 2.1, buscar línea alternativa
-TARGET_ODD = 2.0  # Cuota objetivo
+MAX_ODD_THRESHOLD_STRICT = 2.1  # Threshold estricto (primera pasada)
+MAX_ODD_THRESHOLD_RELAXED = 2.5  # Threshold relajado (fallback)
+TARGET_ODD = 2.0  # Cuota objetivo para líneas ajustadas
 
 
-def adjust_line_if_needed(candidate: Dict, event_bookmakers: List[Dict]) -> Dict:
+def adjust_line_if_needed(candidate: Dict, event_bookmakers: List[Dict], use_relaxed: bool = False) -> Dict:
     """
-    Ajusta línea si la cuota es > 2.1, buscando alternativa más conservadora.
+    Ajusta línea si la cuota es > threshold, buscando alternativa más conservadora.
     
     Args:
         candidate: Diccionario del pick original
         event_bookmakers: Lista de bookmakers del evento con todos los mercados
+        use_relaxed: Si True, usa threshold 2.5 en lugar de 2.1 (modo fallback)
         
     Returns:
-        Diccionario con pick ajustado (o original si no necesita ajuste)
+        Diccionario con pick ajustado, original si no necesita ajuste, o None si debe rechazarse
     """
     original_odds = candidate.get('odds', 0)
+    threshold = MAX_ODD_THRESHOLD_RELAXED if use_relaxed else MAX_ODD_THRESHOLD_STRICT
     
-    # Si cuota <= 2.1, no ajustar
-    if original_odds <= MAX_ODD_THRESHOLD:
+    # Si cuota <= threshold, no ajustar
+    if original_odds <= threshold:
         return candidate
     
     logger.info(f"🔧 Ajustando línea: {candidate.get('selection')} @ {original_odds:.2f} (>2.1)")
@@ -61,8 +64,9 @@ def adjust_line_if_needed(candidate: Dict, event_bookmakers: List[Dict]) -> Dict
         )
         return adjusted
     else:
-        logger.warning(f"⚠️ No se encontró línea alternativa y odds > 2.1, RECHAZANDO pick")
-        # CAMBIO: Retornar None para que el pick sea filtrado, no enviarlo con odds arriesgadas
+        mode_msg = f">{MAX_ODD_THRESHOLD_RELAXED}" if use_relaxed else f">{MAX_ODD_THRESHOLD_STRICT}"
+        logger.warning(f"⚠️ No se encontró línea alternativa y odds {mode_msg}, RECHAZANDO pick")
+        # Retornar None para que el pick sea filtrado
         return None
 
 
