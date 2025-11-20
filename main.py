@@ -1663,9 +1663,9 @@ Tu saldo sigue disponible.
                 logger.info(f"🔧 BAJANDO PROBABILIDAD GRADUALMENTE para alcanzar {target_picks} picks...")
                 
                 # Bajar de 60% → 58% → 56% → 54% → 52%
-                # Y bajar confianza: 60 → 50 → 40 → 30 → 20
+                # Y bajar confianza: 60 → 58 → 55 → 52 → 50 (mínimo 50)
                 prob_levels = [0.58, 0.56, 0.54, 0.52]
-                confidence_levels = [50, 40, 30, 20]
+                confidence_levels = [58, 55, 52, 50]
                 
                 for prob_level, conf_level in zip(prob_levels, confidence_levels):
                     if len(candidates) >= target_picks:
