@@ -183,6 +183,23 @@ class ValueBotMonitor:
             ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
+    def _update_username(self, update: Update) -> str:
+        """
+        Actualiza username del usuario si cambió en Telegram.
+        Retorna el chat_id.
+        """
+        chat_id = str(update.effective_chat.id)
+        username = update.effective_user.username
+        
+        user = self.users_manager.get_user(chat_id)
+        if user and username:
+            if not hasattr(user, 'username') or user.username != username:
+                user.username = username
+                self.users_manager.save()
+                logger.info(f"Username actualizado: @{username} (ID: {chat_id})")
+        
+        return chat_id
+    
     async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /start - muestra botones permanentes y procesa referrals"""
         chat_id = str(update.effective_chat.id)
@@ -281,7 +298,7 @@ class ValueBotMonitor:
     
     async def handle_button_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para mensajes de botones"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         text = update.message.text
         user = self.users_manager.get_user(chat_id)
         
@@ -694,7 +711,7 @@ Tu solicitud de retiro ha sido enviada al admin.
     
     async def handle_activar_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /activar @username o ID o nombre"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         
         if chat_id != CHAT_ID:
             await update.message.reply_text("❌ Solo el admin puede usar este comando")
@@ -734,7 +751,7 @@ Tu solicitud de retiro ha sido enviada al admin.
     
     async def handle_marcar_pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /pago @username o ID o nombre"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         
         if chat_id != CHAT_ID:
             await update.message.reply_text("❌ Solo el admin puede usar este comando")
@@ -812,7 +829,7 @@ Tu solicitud de retiro ha sido enviada al admin.
     
     async def handle_reset_saldo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /reset_saldo @username"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         
         if chat_id != CHAT_ID:
             await update.message.reply_text("❌ Solo el admin puede usar este comando")
@@ -837,7 +854,7 @@ Tu solicitud de retiro ha sido enviada al admin.
     
     async def handle_reset_alertas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /reset_alertas @username"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         
         if chat_id != CHAT_ID:
             await update.message.reply_text("❌ Solo el admin puede usar este comando")
@@ -954,7 +971,7 @@ Tu solicitud de retiro ha sido enviada al admin.
     
     async def handle_stats_reales(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /stats_reales - muestra performance real verificada"""
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._update_username(update)  # Actualizar username automáticamente
         
         if chat_id != CHAT_ID:
             await update.message.reply_text("❌ Solo el admin puede usar este comando")
