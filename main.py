@@ -2170,6 +2170,12 @@ Tu saldo sigue disponible.
             
             # PASO 2: Luego intentar ajustar línea si es necesario
             adjusted = adjust_line_if_needed(candidate, event_bookmakers)
+            
+            # Si line_adjuster retorna None, significa que el pick es muy arriesgado y debe rechazarse
+            if adjusted is None:
+                logger.warning(f"❌ Pick rechazado por line_adjuster (odds > 2.1 sin alternativa segura)")
+                continue
+            
             adjusted_candidates.append(adjusted)
         
         value_candidates = adjusted_candidates

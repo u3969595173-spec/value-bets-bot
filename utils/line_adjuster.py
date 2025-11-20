@@ -61,8 +61,9 @@ def adjust_line_if_needed(candidate: Dict, event_bookmakers: List[Dict]) -> Dict
         )
         return adjusted
     else:
-        logger.warning(f"⚠️ No se encontró línea alternativa, manteniendo original")
-        return candidate
+        logger.warning(f"⚠️ No se encontró línea alternativa y odds > 2.1, RECHAZANDO pick")
+        # CAMBIO: Retornar None para que el pick sea filtrado, no enviarlo con odds arriesgadas
+        return None
 
 
 def _find_adjusted_spread(candidate: Dict, event_bookmakers: List[Dict]) -> Optional[Dict]:
