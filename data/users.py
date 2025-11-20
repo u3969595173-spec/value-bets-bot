@@ -696,8 +696,11 @@ class UsersManager:
             with open(self.storage_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
+            print(f"✅ Guardados {len(self.users)} usuarios en JSON")
+            
             # 2. Guardar en Supabase (persistencia real)
             if supabase:
+                saved_count = 0
                 for chat_id, user in self.users.items():
                     user_data = user.to_dict()
                     # Convertir lista referred_users a JSON para Supabase
@@ -705,12 +708,22 @@ class UsersManager:
                     
                     try:
                         # Upsert (insert or update)
-                        supabase.table('users').upsert(user_data).execute()
+                        result = supabase.table('users').upsert(user_data).execute()
+                        saved_count += 1
+                        print(f"✅ Usuario {chat_id} guardado en Supabase")
                     except Exception as e:
-                        print(f"⚠️  Error guardando usuario {chat_id} en Supabase: {e}")
+                        print(f"❌ Error guardando usuario {chat_id} en Supabase: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                print(f"✅ Guardados {saved_count}/{len(self.users)} usuarios en Supabase")
+            else:
+                print("⚠️  Supabase no disponible, solo guardado en JSON")
                         
         except Exception as e:
-            print(f"⚠️  Error guardando usuarios: {e}")
+            print(f"❌ Error guardando usuarios: {e}")
+            import traceback
+            traceback.print_exc()
     
     def get_user(self, chat_id: str, referrer_code: str = None) -> User:
         """Obtiene o crea un usuario, procesando código de referido si es nuevo."""
