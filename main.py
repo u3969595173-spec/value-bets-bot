@@ -679,9 +679,9 @@ Tu solicitud de retiro ha sido enviada al admin.
         target_user = self.users_manager.get_user_by_username(target_input)
         
         if not target_user:
-            # Buscar por nombre (case-insensitive)
+            # Buscar por nombre (case-insensitive) - verificar que username no sea None
             for user in self.users_manager.users.values():
-                if user.username.lower() == target_input.lower():
+                if user.username and user.username.lower() == target_input.lower():
                     target_user = user
                     break
         
@@ -697,8 +697,9 @@ Tu solicitud de retiro ha sido enviada al admin.
         target_user.is_permanent_premium = True
         self.users_manager.save_users()
         
-        await update.message.reply_text(f"✅ @{target_user.username} (ID: {target_user.chat_id}) ahora es Premium")
-        logger.info(f"Admin activó premium para @{target_user.username}")
+        username_display = target_user.username or f"ID:{target_user.chat_id}"
+        await update.message.reply_text(f"✅ @{username_display} (ID: {target_user.chat_id}) ahora es Premium")
+        logger.info(f"Admin activó premium para @{username_display}")
     
     async def handle_marcar_pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /pago @username o ID o nombre"""
@@ -719,7 +720,7 @@ Tu solicitud de retiro ha sido enviada al admin.
         
         if not target_user:
             for user in self.users_manager.users.values():
-                if user.username.lower() == target_input.lower():
+                if user.username and user.username.lower() == target_input.lower():
                     target_user = user
                     break
         
@@ -727,7 +728,7 @@ Tu solicitud de retiro ha sido enviada al admin.
             target_user = self.users_manager.get_user(target_input)
         
         if not target_user:
-            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            await update.message.reply_text(f"❌ Usuario '{target_input}' no encontrado")
             return
         
         amount = target_user.get_weekly_payment()
@@ -736,7 +737,8 @@ Tu solicitud de retiro ha sido enviada al admin.
         target_user.last_payment_date = datetime.now().strftime("%Y-%m-%d")
         self.users_manager.save_users()
         
-        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{target_username}\n\nSaldo reiniciado a 0€\nEstado: PAGADO ✅")
+        username_display = target_user.username or f"ID:{target_user.chat_id}"
+        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{username_display}\n\nSaldo reiniciado a 0€\nEstado: PAGADO ✅")
         logger.info(f"Admin marcó pago de {amount:.2f}€ para @{target_username}")
     
     async def handle_reset_saldo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
