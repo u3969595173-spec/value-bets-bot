@@ -12,16 +12,16 @@ from utils.sport_translator import translate_sport
 from utils.lineup_analyzer import get_lineup_section
 
 
-def escape_markdown(text: str) -> str:
+def escape_html(text: str) -> str:
     """
-    Escapa solo los caracteres que pueden romper Markdown básico.
-    Para Telegram Markdown básico: escapar * _ ` [
+    Escapa caracteres especiales para HTML de Telegram.
     """
     if not text:
         return text
-    # Escapar caracteres que rompen formato
-    text = str(text).replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[')
+    # Escapar & < > " para HTML
+    text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
     return text
+
 
 
 def format_free_alert(candidate: Dict) -> str:
@@ -38,17 +38,17 @@ def format_free_alert(candidate: Dict) -> str:
     
     # Header simple
     sport_es = translate_sport(candidate.get('sport_key', ''), candidate.get('sport'))
-    event_name = escape_markdown(candidate.get('event', 'N/A'))
-    lines.append(f"🎯 **{sport_es.upper()}**")
-    lines.append(f"⚽ **{event_name}**")
+    event_name = escape_html(candidate.get('event', 'N/A'))
+    lines.append(f"🎯 <b>{sport_es.upper()}</b>")
+    lines.append(f"⚽ <b>{event_name}</b>")
     lines.append("")
     
     # Información detallada del mercado con formato claro
-    market = escape_markdown(candidate.get('market', 'N/A'))
+    market = escape_html(candidate.get('market', 'N/A'))
     market_key = candidate.get('market_key', '')
-    selection = escape_markdown(candidate['selection'])
+    selection = escape_html(candidate['selection'])
     odd = candidate['odds']
-    bookmaker = escape_markdown(candidate.get('bookmaker', 'N/A'))
+    bookmaker = escape_html(candidate.get('bookmaker', 'N/A'))
     point = candidate.get('point')
 
     # Detectar tipo de mercado si no viene market_key
@@ -61,68 +61,68 @@ def format_free_alert(candidate: Dict) -> str:
             market_key = 'h2h'
 
     # Formatear según el tipo de mercado DE FORMA CLARA
-    lines.append("📋 **APUESTA:**")
-    lines.append(f"   🏆 **Partido:** {event_name}")
+    lines.append("📋 <b>APUESTA:</b>")
+    lines.append(f"   🏆 <b>Partido:</b> {event_name}")
     lines.append("")
 
     if market_key == 'h2h':
         # Ganador directo
-        lines.append(f"   ⚽ **Tipo:** GANADOR DEL PARTIDO")
-        lines.append(f"   🎯 **Apuesta:** {selection}")
-        lines.append(f"   💰 **Cuota:** {odd:.2f}")
+        lines.append(f"   ⚽ <b>Tipo:</b> GANADOR DEL PARTIDO")
+        lines.append(f"   🎯 <b>Apuesta:</b> {selection}")
+        lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
     elif market_key == 'spreads':
         # Hándicap
-        lines.append(f"   🎯 **Tipo:** HÁNDICAP")
-        lines.append(f"   ⚽ **Equipo:** {selection}")
+        lines.append(f"   🎯 <b>Tipo:</b> HÁNDICAP")
+        lines.append(f"   ⚽ <b>Equipo:</b> {selection}")
         if point is not None:
-            lines.append(f"   📊 **Línea:** {point:+.1f} puntos")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   📊 <b>Línea:</b> {point:+.1f} puntos")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
             lines.append("")
             if point > 0:
-                lines.append(f"   ℹ️ **Significa:** {selection} puede PERDER hasta {abs(point)} puntos y GANAS")
+                lines.append(f"   ℹ️ <b>Significa:</b> {selection} puede PERDER hasta {abs(point)} puntos y GANAS")
             else:
-                lines.append(f"   ℹ️ **Significa:** {selection} debe GANAR por MÁS de {abs(point)} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> {selection} debe GANAR por MÁS de {abs(point)} puntos")
         else:
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
     elif market_key == 'totals':
         # Totales (Over/Under)
         over_under = "OVER" if "over" in selection.lower() else "UNDER"
-        lines.append(f"   📊 **Tipo:** TOTAL DE PUNTOS")
+        lines.append(f"   📊 <b>Tipo:</b> TOTAL DE PUNTOS")
         if point is not None:
-            lines.append(f"   🎯 **Apuesta:** {over_under} {point} puntos")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   🎯 <b>Apuesta:</b> {over_under} {point} puntos")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
             lines.append("")
             if over_under == "OVER":
-                lines.append(f"   ℹ️ **Significa:** Marcador TOTAL debe ser MAYOR a {point} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> Marcador TOTAL debe ser MAYOR a {point} puntos")
             else:
-                lines.append(f"   ℹ️ **Significa:** Marcador TOTAL debe ser MENOR a {point} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> Marcador TOTAL debe ser MENOR a {point} puntos")
         else:
-            lines.append(f"   🎯 **Apuesta:** {selection}")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   🎯 <b>Apuesta:</b> {selection}")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
     else:
         # Otro mercado
-        lines.append(f"   📊 **Tipo:** {market}")
-        lines.append(f"   🎯 **Apuesta:** {selection}")
-        lines.append(f"   💰 **Cuota:** {odd:.2f}")
+        lines.append(f"   📊 <b>Tipo:</b> {market}")
+        lines.append(f"   🎯 <b>Apuesta:</b> {selection}")
+        lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
 
     lines.append("")
-    lines.append(f"🏠 **Casa de apuestas:** {bookmaker}")
+    lines.append(f"🏠 <b>Casa de apuestas:</b> {bookmaker}")
     
     # Mostrar si se usó casa estándar
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
-        original_bm = escape_markdown(candidate.get('original_bookmaker', 'N/A'))
+        original_bm = escape_html(candidate.get('original_bookmaker', 'N/A'))
         lines.append("")
-        lines.append(f"💎 **Cuota ajustada a casa estándar:**")
+        lines.append(f"💎 <b>Cuota ajustada a casa estándar:</b>")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
         lines.append(f"   {bookmaker}: @ {odd:.2f} ✅")
 
     # --- PICK EXPLICADO ---
     lines.append("")
-    lines.append("📝 **PICK EXPLICADO:**")
+    lines.append("📝 <b>PICK EXPLICADO:</b>")
     # Cuota
     lines.append(f"• Cuota: {odd:.2f}")
     # Probabilidad real
@@ -142,32 +142,32 @@ def format_free_alert(candidate: Dict) -> str:
 
     # Información de valor básica
     if value is not None and value > 0:
-        lines.append(f"💎 **VALOR:** {value:.3f}")
+        lines.append(f"💎 <b>VALOR:</b> {value:.3f}")
     
     if candidate.get('edge_percent', 0) > 0:
-        lines.append(f"🎯 **VENTAJA:** +{candidate['edge_percent']:.1f}%")
+        lines.append(f"🎯 <b>VENTAJA:</b> +{candidate['edge_percent']:.1f}%")
     
     # Análisis detallado del pronóstico
     lines.append("")
-    lines.append("🔍 **ANÁLISIS DETALLADO:**")
+    lines.append("🔍 <b>ANÁLISIS DETALLADO:</b>")
     
     if candidate.get('real_probability', 0) > 0:
         real_prob_pct = candidate['real_probability'] * 100
         implied_prob_pct = (100/candidate['odds'])
-        lines.append(f"📊 **Probabilidad real:** {real_prob_pct:.0f}%")
-        lines.append(f"📉 **Prob. implícita casa:** {implied_prob_pct:.0f}%")
-        lines.append(f"💎 **Diferencia a tu favor:** +{real_prob_pct - implied_prob_pct:.1f}%")
+        lines.append(f"📊 <b>Probabilidad real:</b> {real_prob_pct:.0f}%")
+        lines.append(f"📉 <b>Prob. implícita casa:</b> {implied_prob_pct:.0f}%")
+        lines.append(f"💎 <b>Diferencia a tu favor:</b> +{real_prob_pct - implied_prob_pct:.1f}%")
     
     # Análisis específico del mercado
     market_key = candidate.get('market_key', '')
     if market_key == 'spreads' or 'hándicap' in candidate.get('market', '').lower():
-        lines.append("🎯 **Tipo:** Hándicap - Línea favorable según estadísticas")
+        lines.append("🎯 <b>Tipo:</b> Hándicap - Línea favorable según estadísticas")
     elif market_key == 'h2h' or 'ganador' in candidate.get('market', '').lower():
-        lines.append("⚽ **Tipo:** Ganador - Probabilidad subestimada por el mercado")
+        lines.append("⚽ <b>Tipo:</b> Ganador - Probabilidad subestimada por el mercado")
     elif market_key == 'totals' or 'total' in candidate.get('market', '').lower():
-        lines.append("📊 **Tipo:** Totales - Línea mal calibrada por la casa")
+        lines.append("📊 <b>Tipo:</b> Totales - Línea mal calibrada por la casa")
     
-    lines.append("✅ **Recomendación:** APOSTAR - Value bet confirmado")
+    lines.append("✅ <b>Recomendación:</b> APOSTAR - Value bet confirmado")
     
     # Análisis de alineaciones usando sistema especializado
     lines.append("")
@@ -176,12 +176,12 @@ def format_free_alert(candidate: Dict) -> str:
     
     # Nota sobre mejora de cuotas
     lines.append("")
-    lines.append("💡 **OPTIMIZA TUS GANANCIAS:**")
+    lines.append("💡 <b>OPTIMIZA TUS GANANCIAS:</b>")
     lines.append("🔍 Busca esta misma apuesta en otras casas")
     lines.append("📈 Puedes encontrar cuotas mejores (hasta 0.05-0.10 más)")
     lines.append("💰 Cada 0.05 de mejora = +5% más ganancia")
     lines.append("")
-    lines.append("🎯 **MEJORA TU % DE ACIERTO:**")
+    lines.append("🎯 <b>MEJORA TU % DE ACIERTO:</b>")
     lines.append("📊 Si buscas cuotas más pequeñas/conservadoras")
     lines.append("✅ Puedes acomodar mejor la apuesta a mi pronóstico")
     lines.append("🔧 Ajusta líneas de hándicap o totales más favorables")
@@ -222,13 +222,13 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     
     # Información detallada del evento
     sport_es = translate_sport(candidate.get('sport_key', ''), candidate.get('sport'))
-    market = escape_markdown(candidate.get('market', 'N/A'))
+    market = escape_html(candidate.get('market', 'N/A'))
     market_key = candidate.get('market_key', '')
-    selection = escape_markdown(candidate['selection'])
+    selection = escape_html(candidate['selection'])
     odd = candidate['odds']
-    bookmaker = escape_markdown(candidate.get('bookmaker', 'N/A'))
+    bookmaker = escape_html(candidate.get('bookmaker', 'N/A'))
     original_bookmaker = bookmaker
-    event_name = escape_markdown(candidate.get('event', 'N/A'))
+    event_name = escape_html(candidate.get('event', 'N/A'))
     
     point = candidate.get('point')
 
@@ -241,62 +241,62 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
         else:
             market_key = 'h2h'
 
-    lines.append(f"🎯 **{sport_es.upper()}**")
-    lines.append(f"⚽ **{event_name}**")
+    lines.append(f"🎯 <b>{sport_es.upper()}</b>")
+    lines.append(f"⚽ <b>{event_name}</b>")
     lines.append("")
-    lines.append("📋 **APUESTA RECOMENDADA:**")
+    lines.append("📋 <b>APUESTA RECOMENDADA:</b>")
 
     if market_key == 'h2h':
         # Ganador directo
-        lines.append(f"   ⚽ **Tipo:** GANADOR DEL PARTIDO")
-        lines.append(f"   🎯 **Apuesta:** {selection}")
-        lines.append(f"   💰 **Cuota:** {odd:.2f}")
+        lines.append(f"   ⚽ <b>Tipo:</b> GANADOR DEL PARTIDO")
+        lines.append(f"   🎯 <b>Apuesta:</b> {selection}")
+        lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
     elif market_key == 'spreads':
         # Hándicap
-        lines.append(f"   🎯 **Tipo:** HÁNDICAP")
-        lines.append(f"   ⚽ **Equipo:** {selection}")
+        lines.append(f"   🎯 <b>Tipo:</b> HÁNDICAP")
+        lines.append(f"   ⚽ <b>Equipo:</b> {selection}")
         if point is not None:
-            lines.append(f"   📊 **Línea:** {point:+.1f} puntos")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   📊 <b>Línea:</b> {point:+.1f} puntos")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
             lines.append("")
             if point > 0:
-                lines.append(f"   ℹ️ **Significa:** {selection} puede PERDER hasta {abs(point)} puntos y GANAS")
+                lines.append(f"   ℹ️ <b>Significa:</b> {selection} puede PERDER hasta {abs(point)} puntos y GANAS")
             else:
-                lines.append(f"   ℹ️ **Significa:** {selection} debe GANAR por MÁS de {abs(point)} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> {selection} debe GANAR por MÁS de {abs(point)} puntos")
         else:
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
     elif market_key == 'totals':
         # Totales (Over/Under)
         over_under = "OVER" if "over" in selection.lower() else "UNDER"
-        lines.append(f"   📊 **Tipo:** TOTAL DE PUNTOS")
+        lines.append(f"   📊 <b>Tipo:</b> TOTAL DE PUNTOS")
         if point is not None:
-            lines.append(f"   🎯 **Apuesta:** {over_under} {point} puntos")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   🎯 <b>Apuesta:</b> {over_under} {point} puntos")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
             lines.append("")
             if over_under == "OVER":
-                lines.append(f"   ℹ️ **Significa:** Marcador TOTAL debe ser MAYOR a {point} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> Marcador TOTAL debe ser MAYOR a {point} puntos")
             else:
-                lines.append(f"   ℹ️ **Significa:** Marcador TOTAL debe ser MENOR a {point} puntos")
+                lines.append(f"   ℹ️ <b>Significa:</b> Marcador TOTAL debe ser MENOR a {point} puntos")
         else:
-            lines.append(f"   🎯 **Apuesta:** {selection}")
-            lines.append(f"   💰 **Cuota:** {odd:.2f}")
+            lines.append(f"   🎯 <b>Apuesta:</b> {selection}")
+            lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
     else:
         # Otro mercado
-        lines.append(f"   📊 **Mercado:** {market}")
-        lines.append(f"   ✅ **Selección:** {selection}")
-        lines.append(f"   💰 **Cuota:** {odd:.2f}")
+        lines.append(f"   📊 <b>Mercado:</b> {market}")
+        lines.append(f"   ✅ <b>Selección:</b> {selection}")
+        lines.append(f"   💰 <b>Cuota:</b> {odd:.2f}")
 
     lines.append("")
-    lines.append(f"🏠 **Casa recomendada:** {original_bookmaker}")
+    lines.append(f"🏠 <b>Casa recomendada:</b> {original_bookmaker}")
     
     # Mostrar si se usó William Hill (casa estándar)
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
-        original_bm = escape_markdown(candidate.get('original_bookmaker', 'N/A'))
+        original_bm = escape_html(candidate.get('original_bookmaker', 'N/A'))
         lines.append("")
-        lines.append(f"💎 **Cuota ajustada a casa estándar:**")
+        lines.append(f"💎 <b>Cuota ajustada a casa estándar:</b>")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
         lines.append(f"   {bookmaker}: @ {odd:.2f} ✅")
         if odd < original_odds_val:
@@ -307,7 +307,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
         original_odds_val = candidate.get('original_odds')
         original_point_val = candidate.get('original_point')
         lines.append("")
-        lines.append(f"🔧 **Línea ajustada automáticamente:**")
+        lines.append(f"🔧 <b>Línea ajustada automáticamente:</b>")
         if original_point_val is not None:
             lines.append(f"   Original: {selection} {original_point_val} @ {original_odds_val:.2f}")
             lines.append(f"   Ajustada: {selection} {point} @ {odd:.2f}")
@@ -318,7 +318,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
 
     # --- PICK EXPLICADO ---
     lines.append("")
-    lines.append("📝 **PICK EXPLICADO:**")
+    lines.append("📝 <b>PICK EXPLICADO:</b>")
     # Cuota
     lines.append(f"• Cuota: {odd:.2f}")
     # Probabilidad real
@@ -345,51 +345,51 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
         else:
             # Si es string, usarlo directamente
             commence_str = str(commence_time)
-        lines.append(f"⏰ **INICIO:** {commence_str}")
+        lines.append(f"⏰ <b>INICIO:</b> {commence_str}")
 
     lines.append("")
 
     # Métricas de valor
-    lines.append("📈 **ANÁLISIS PROFESIONAL DE VALOR:**")
+    lines.append("📈 <b>ANÁLISIS PROFESIONAL DE VALOR:</b>")
     
     if candidate.get('real_probability', 0) > 0:
         real_prob_pct = candidate['real_probability'] * 100
-        lines.append(f"✅ **Prob. Real:** {real_prob_pct:.1f}%")
+        lines.append(f"✅ <b>Prob. Real:</b> {real_prob_pct:.1f}%")
     
     if candidate.get('implied_probability', 0) > 0:
         implied_prob_pct = candidate['implied_probability'] * 100
-        lines.append(f"📉 **Prob. Implícita:** {implied_prob_pct:.1f}%")
+        lines.append(f"📉 <b>Prob. Implícita:</b> {implied_prob_pct:.1f}%")
         prob_diff = real_prob_pct - implied_prob_pct
         if prob_diff > 0:
-            lines.append(f"⚡ **Ventaja detectada:** +{prob_diff:.1f}% a tu favor")
+            lines.append(f"⚡ <b>Ventaja detectada:</b> +{prob_diff:.1f}% a tu favor")
     
     if candidate.get('value', 0) > 0:
-        lines.append(f"💎 **Valor:** {candidate['value']:.3f} (Ganancia esperada: {((candidate['value']-1)*100):.1f}%)")
+        lines.append(f"💎 <b>Valor:</b> {candidate['value']:.3f} (Ganancia esperada: {((candidate['value']-1)*100):.1f}%)")
     
     # Análisis detallado específico del mercado
     lines.append("")
-    lines.append("🔍 **ANÁLISIS TÉCNICO DETALLADO:**")
+    lines.append("🔍 <b>ANÁLISIS TÉCNICO DETALLADO:</b>")
     
     market_key = candidate.get('market_key', '')
     if market_key == 'spreads' or 'hándicap' in candidate.get('market', '').lower():
-        lines.append("🎯 **Mercado Hándicap:**")
+        lines.append("🎯 <b>Mercado Hándicap:</b>")
         lines.append("• Línea mal calibrada por la casa de apuestas")
         lines.append("• Estadísticas históricas favorecen esta selección")
         lines.append("• Probabilidad real superior a la implícita")
     elif market_key == 'h2h' or 'ganador' in candidate.get('market', '').lower():
-        lines.append("⚽ **Mercado Ganador:**")
+        lines.append("⚽ <b>Mercado Ganador:</b>")
         lines.append("• Casa subestima probabilidades del favorito")
         lines.append("• Análisis de forma reciente favorable")
         lines.append("• Value bet confirmado por algoritmo avanzado")
     elif market_key == 'totals' or 'total' in candidate.get('market', '').lower():
-        lines.append("📊 **Mercado Totales:**")
+        lines.append("📊 <b>Mercado Totales:</b>")
         lines.append("• Línea de puntos mal establecida")
         lines.append("• Estadísticas ofensivas/defensivas favorables")
         lines.append("• Patrón histórico confirma tendencia")
     
     lines.append("")
-    lines.append("✅ **RECOMENDACIÓN PREMIUM:** APOSTAR CON CONFIANZA")
-    lines.append("🎯 **Nivel de confianza:** ALTO (Value bet confirmado)")
+    lines.append("✅ <b>RECOMENDACIÓN PREMIUM:</b> APOSTAR CON CONFIANZA")
+    lines.append("🎯 <b>Nivel de confianza:</b> ALTO (Value bet confirmado)")
     
     # Análisis crítico de alineaciones para Premium usando sistema especializado
     lines.append("")
@@ -398,64 +398,64 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     
     # Optimización de cuotas mejorada para Premium
     lines.append("")
-    lines.append("💰 **ESTRATEGIA DE OPTIMIZACIÓN:**")
-    lines.append("🔍 **Paso 1:** Verifica esta cuota en 3-5 casas diferentes")
-    lines.append("📈 **Paso 2:** Busca mejoras de 0.03-0.10 puntos")
-    lines.append("💎 **Paso 3:** Cada 0.05 de mejora = +5% más ganancia")
-    lines.append("🏆 **Objetivo:** Maximizar ROI en cada apuesta value")
+    lines.append("💰 <b>ESTRATEGIA DE OPTIMIZACIÓN:</b>")
+    lines.append("🔍 <b>Paso 1:</b> Verifica esta cuota en 3-5 casas diferentes")
+    lines.append("📈 <b>Paso 2:</b> Busca mejoras de 0.03-0.10 puntos")
+    lines.append("💎 <b>Paso 3:</b> Cada 0.05 de mejora = +5% más ganancia")
+    lines.append("🏆 <b>Objetivo:</b> Maximizar ROI en cada apuesta value")
     lines.append("")
-    lines.append("🎯 **ESTRATEGIA CONSERVADORA (Mayor % Acierto):**")
-    lines.append("📊 **Opción A:** Busca cuotas más pequeñas del mismo pronóstico")
-    lines.append("🔧 **Opción B:** Ajusta líneas de hándicap más conservadoras")
-    lines.append("✅ **Opción C:** Acomoda la apuesta para menor riesgo")
-    lines.append("📈 **Resultado:** Menor ganancia pero mayor porcentaje de aciertos")
-    lines.append("🎲 **Balance:** Tú decides entre más ganancia vs más aciertos")
+    lines.append("🎯 <b>ESTRATEGIA CONSERVADORA (Mayor % Acierto):</b>")
+    lines.append("📊 <b>Opción A:</b> Busca cuotas más pequeñas del mismo pronóstico")
+    lines.append("🔧 <b>Opción B:</b> Ajusta líneas de hándicap más conservadoras")
+    lines.append("✅ <b>Opción C:</b> Acomoda la apuesta para menor riesgo")
+    lines.append("📈 <b>Resultado:</b> Menor ganancia pero mayor porcentaje de aciertos")
+    lines.append("🎲 <b>Balance:</b> Tú decides entre más ganancia vs más aciertos")
     
     if candidate.get('edge_percent', 0) > 0:
-        lines.append(f"🎯 **Ventaja:** +{candidate['edge_percent']:.1f}%")
+        lines.append(f"🎯 <b>Ventaja:</b> +{candidate['edge_percent']:.1f}%")
     
     lines.append("")
     
     # Analytics avanzados (si existen)
     if candidate.get('vig'):
-        lines.append("🔍 **INTELIGENCIA DE MERCADO:**")
-        lines.append(f"📈 **Vig:** {candidate.get('vig', 0):.2f}%")
+        lines.append("🔍 <b>INTELIGENCIA DE MERCADO:</b>")
+        lines.append(f"📈 <b>Vig:</b> {candidate.get('vig', 0):.2f}%")
         
         if candidate.get('efficiency', 0) > 0:
-            lines.append(f"⚙️ **Eficiencia:** {candidate['efficiency']:.2f}")
+            lines.append(f"⚙️ <b>Eficiencia:</b> {candidate['efficiency']:.2f}")
         
         if candidate.get('consensus_mean', 0) > 0:
             consensus_diff = candidate.get('consensus_diff_pct', 0)
-            lines.append(f"🌐 **Media mercado:** {candidate['consensus_mean']:.2f}")
-            lines.append(f"📊 **Diferencia:** {consensus_diff:+.1f}%")
+            lines.append(f"🌐 <b>Media mercado:</b> {candidate['consensus_mean']:.2f}")
+            lines.append(f"📊 <b>Diferencia:</b> {consensus_diff:+.1f}%")
         
         if candidate.get('moved'):
-            lines.append(f"📈 **Movimiento:** {candidate.get('movement_direction', 'N/A')}")
+            lines.append(f"📈 <b>Movimiento:</b> {candidate.get('movement_direction', 'N/A')}")
         
         lines.append("")
     
     # Recomendación de stake
-    lines.append("💰 **GESTIÓN DE BANKROLL:**")
+    lines.append("💰 <b>GESTIÓN DE BANKROLL:</b>")
     bankroll = getattr(user, 'dynamic_bank', getattr(user, 'bankroll', 1000))
-    lines.append(f"💵 **Bankroll actual:** ${bankroll:.2f}")
-    lines.append(f"🎯 **Stake:** 10% (${stake:.2f})")
+    lines.append(f"💵 <b>Bankroll actual:</b> ${bankroll:.2f}")
+    lines.append(f"🎯 <b>Stake:</b> 10% (${stake:.2f})")
     
     # Score final
     if candidate.get('final_score', 0) > 0:
         lines.append("")
-        lines.append(f"⭐ **SCORE ALGORITMO:** {candidate['final_score']:.2f}/5.0")
+        lines.append(f"⭐ <b>SCORE ALGORITMO:</b> {candidate['final_score']:.2f}/5.0")
         if candidate['final_score'] >= 4.0:
-            lines.append("🔥 **CALIFICACIÓN:** EXCELENTE - Alta probabilidad de éxito")
+            lines.append("🔥 <b>CALIFICACIÓN:</b> EXCELENTE - Alta probabilidad de éxito")
         elif candidate['final_score'] >= 3.0:
-            lines.append("✅ **CALIFICACIÓN:** BUENA - Apuesta recomendada")
+            lines.append("✅ <b>CALIFICACIÓN:</b> BUENA - Apuesta recomendada")
         else:
-            lines.append("⚠️ **CALIFICACIÓN:** MODERADA - Apostar con cautela")
+            lines.append("⚠️ <b>CALIFICACIÓN:</b> MODERADA - Apostar con cautela")
     
     lines.append("")
-    lines.append("🎯 **¡Buena suerte y que las probabilidades estén a tu favor!**")
+    lines.append("🎯 <b>¡Buena suerte y que las probabilidades estén a tu favor!</b>")
     lines.append("")
-    lines.append("💡 **RECUERDA:** Busca mejores cuotas en otras casas para maximizar ganancias")
-    lines.append("🔧 **CONSEJO:** Ajusta a cuotas más conservadoras si prefieres mayor % de aciertos")
+    lines.append("💡 <b>RECUERDA:</b> Busca mejores cuotas en otras casas para maximizar ganancias")
+    lines.append("🔧 <b>CONSEJO:</b> Ajusta a cuotas más conservadoras si prefieres mayor % de aciertos")
     
     return "\n".join(lines)
 
@@ -465,7 +465,7 @@ def format_limits_reached_message(user) -> str:
     Mensaje cuando el usuario alcanza su límite diario.
     """
     lines = []
-    lines.append("⏸️ **LÍMITE DIARIO ALCANZADO**")
+    lines.append("⏸️ <b>LÍMITE DIARIO ALCANZADO</b>")
     lines.append("")
     
     if user.is_premium_active():
@@ -490,18 +490,18 @@ def format_stats_message(user) -> str:
     Formato de estadísticas del usuario.
     """
     lines = []
-    lines.append("📊 **ESTADÍSTICAS PERSONALES**")
+    lines.append("📊 <b>ESTADÍSTICAS PERSONALES</b>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append("")
     
     # Estado de cuenta
     if user.is_premium_active():
-        lines.append("💎 **USUARIO PREMIUM**")
+        lines.append("💎 <b>USUARIO PREMIUM</b>")
         if user.suscripcion_fin:
-            lines.append(f"⏰ **Expira:** {user.suscripcion_fin}")
+            lines.append(f"⏰ <b>Expira:</b> {user.suscripcion_fin}")
         lines.append("✨ Alertas ILIMITADAS")
     else:
-        lines.append("🆓 **Usuario Gratuito**")
+        lines.append("🆓 <b>Usuario Gratuito</b>")
         lines.append("• 1 alerta diaria")
         lines.append("• Análisis básico")
     

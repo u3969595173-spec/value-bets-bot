@@ -37,7 +37,7 @@ class TelegramNotifier:
         payload = {
             'chat_id': target_chat,
             'text': text,
-            'parse_mode': 'Markdown'
+            'parse_mode': 'HTML'
         }
         
         try:
