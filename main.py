@@ -1472,22 +1472,8 @@ Tu saldo sigue disponible.
                 selected_candidates = candidates
             
             logger.info(f"✅ Picks seleccionados para envío: {len(selected_candidates)}")
-                # Calcular EV real para cada candidato
-                for c in candidates:
-                    odds = c.get('odds', 0)
-                    prob = c.get('prob', 0)
-                    c['expected_value'] = (prob * odds) - 1  # EV real
-                    c['ev_percent'] = c['expected_value'] * 100
-                
-                # Ordenar por EV descendente y tomar top MAX_DAILY_PICKS
-                candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
-                selected_candidates = candidates[:MAX_DAILY_PICKS]
-                
-                # Log de picks descartados
-                discarded = candidates[MAX_DAILY_PICKS:]
-                logger.info(f"❌ Descartados {len(discarded)} picks por límite máximo:")
-                for i, pick in enumerate(discarded[:5], 1):
-                    logger.info(f"   [{i}] {pick.get('selection')} @ {pick.get('odds'):.2f} - EV: {pick.get('ev_percent', 0):.2f}%")
+            
+            logger.info(f"📤 Returning {len(selected_candidates)} picks para alertas")
             else:
                 logger.info(f"✅ {len(candidates)} picks en rango óptimo ({MIN_DAILY_PICKS}-{MAX_DAILY_PICKS})")
                 selected_candidates = candidates
