@@ -1706,24 +1706,23 @@ Tu saldo sigue disponible.
             for candidate in candidates:
                 candidate['min_confidence_used'] = min_confidence_adaptive
             
-            # Ordenar por valor (value) y seleccionar top 5
-            if len(candidates) > target_picks:
-                logger.info(f"📈 {len(candidates)} picks encontrados, seleccionando top {target_picks} por valor")
-                candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
-                selected_candidates = candidates[:target_picks]
-            else:
-                selected_candidates = candidates
+            # En vez de forzar 5 picks, enviar los que cumplan el umbral de calidad
+            # Ordenar por confianza y valor
+            candidates.sort(key=lambda x: (x.get('confidence_score', 0), x.get('value', 0)), reverse=True)
             
-            logger.info(f"✅ Picks seleccionados para envío: {len(selected_candidates)}")
+            # Filtrar solo los que cumplan el umbral de confianza adaptado
+            quality_candidates = [c for c in candidates if c.get('confidence_score', 0) >= min_confidence_adaptive]
             
-            logger.info(f"📤 Returning {len(selected_candidates)} picks para alertas")
+            logger.info(f"📊 {len(candidates)} picks encontrados, {len(quality_candidates)} cumplen umbral de confianza {min_confidence_adaptive}")
+            logger.info(f"✅ Enviando {len(quality_candidates)} picks de calidad (sin forzar cantidad)")
             
-            # El pick de mayor valor va para usuarios free (será el primero después de ordenar)
-            if selected_candidates:
-                logger.info(f"🎯 Pick #1 (mayor valor {selected_candidates[0].get('value', 0):.3f}) → Usuarios FREE")
-                logger.info(f"💎 Picks #2-5 → Usuarios PREMIUM")
+            # El pick de mayor valor va para usuarios free
+            if quality_candidates:
+                logger.info(f"🎯 Pick #1 (mayor valor {quality_candidates[0].get('value', 0):.3f}) → Usuarios FREE")
+                if len(quality_candidates) > 1:
+                    logger.info(f"💎 Picks #2-{len(quality_candidates)} → Usuarios PREMIUM")
             
-            return selected_candidates
+            return quality_candidates
             
         except Exception as e:
             logger.error(f"Ã¢ÂÅ’ Error finding value opportunities: {e}")
@@ -1924,11 +1923,12 @@ Tu saldo sigue disponible.
         
         total_alerts_sent = 0
         
-        # 1. USUARIOS PREMIUM: reciben exactamente 5 picks (los mejores ordenados por value)
-        premium_picks = value_candidates[:5]  # Siempre 5 picks para premium
-        logger.info(f"📤 Enviando exactamente {len(premium_picks)} picks a usuarios premium")
+        # Enviar picks de calidad conforme se encuentran (sin forzar cantidad)
+        # Ordenados por confianza y valor
+        logger.info(f"📤 Enviando {len(value_candidates)} picks de calidad encontrados")
         
-        for candidate in premium_picks:
+        # 1. USUARIOS PREMIUM: reciben los picks de calidad encontrados
+        for candidate in value_candidates:
             # Verificar si ya enviamos esta alerta
             candidate_key = f"{candidate.get('id', '')}_{candidate.get('selection', '')}"
             
@@ -1956,10 +1956,10 @@ Tu saldo sigue disponible.
                 if alerts_sent_for_candidate >= len(premium_users):
                     break
         
-        # 2. USUARIOS GRATIS: reciben SOLO 1 pick (el de MAYOR value de los 5)
+        # 2. USUARIOS GRATIS: reciben SOLO 1 pick (el de MAYOR valor)
         if free_users and value_candidates:
-            best_pick = value_candidates[0]  # El #1 con mayor EV
-            logger.info(f"🎁 Enviando 1 pick GRATIS (máximo value) a {len(free_users)} usuarios gratis")
+            best_pick = value_candidates[0]  # El #1 con mayor valor
+            logger.info(f"🎁 Enviando 1 pick GRATIS (máximo valor) a {len(free_users)} usuarios gratis")
             
             best_pick_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
             
