@@ -1162,6 +1162,64 @@ async def cmd_reiniciar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(f"❌ Error: {e}")
 
 
+async def cmd_reset_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando admin: /reset_alertas <@username o user_id>
+    Resetea el contador de alertas diarias de un usuario
+    """
+    admin_id = str(update.effective_user.id)
+    
+    # Solo admin puede usar este comando
+    if admin_id != CHAT_ID:
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "❌ Uso: /reset_alertas <@username o user_id>\n"
+            "Ejemplos:\n"
+            "  /reset_alertas @juan_perez\n"
+            "  /reset_alertas 123456789"
+        )
+        return
+    
+    user_identifier = context.args[0]
+    
+    try:
+        # Si empieza con @, buscar por username
+        if user_identifier.startswith('@'):
+            username = user_identifier[1:]
+            user = users_manager.get_user_by_username(username)
+            if not user:
+                await update.message.reply_text(f"❌ Usuario @{username} no encontrado")
+                return
+            user_id = user.user_id
+        else:
+            # Usar user_id directamente
+            user_id = user_identifier
+            user = users_manager.get_user(user_id)
+            if not user:
+                await update.message.reply_text(f"❌ Usuario {user_id} no encontrado")
+                return
+        
+        # Resetear contador
+        from datetime import datetime, timezone
+        user.alerts_sent_today = 0
+        user.last_reset_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        users_manager.save()
+        
+        await update.message.reply_text(
+            f"✅ Contador de alertas reseteado\n\n"
+            f"👤 Usuario: {user_id}\n"
+            f"📊 Alertas disponibles: {5 if user.is_premium_active() else 1}\n"
+            f"📅 Fecha reset: {user.last_reset_date}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error reseteando alertas: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
+
 # ============================================================================
 # MAIN
 # ============================================================================
@@ -1193,6 +1251,7 @@ async def main_async():
     application.add_handler(CommandHandler("marcar_pago", cmd_marcar_pago))
     application.add_handler(CommandHandler("activar_premium", cmd_activar_premium))
     application.add_handler(CommandHandler("reiniciar_saldo", cmd_reiniciar_saldo))
+    application.add_handler(CommandHandler("reset_alertas", cmd_reset_alertas))
     
     application.add_handler(CallbackQueryHandler(callback_query_handler))
     
