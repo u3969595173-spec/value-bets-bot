@@ -10,7 +10,8 @@ import asyncio
 import logging
 import shutil
 import pytz
-from datetime import datetime, timezone, timedelta
+import datetime
+from datetime import timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
@@ -69,61 +70,152 @@ payment_processor = PremiumPaymentProcessor(referral_system, users_manager)
 # Variable global para la aplicación (se inicializa en main)
 application = None
 
+# ========== RESET SEMANAL Y NOTIFICACIONES =============
+async def weekly_reset_and_notify(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Ejecuta cada lunes:
+    1. Calcula ganancias de la semana para todos los usuarios premium
+    2. Registra deudas (20% si hubo profit)
+    3. Reinicia bank a 200€
+    4. Notifica a usuarios sobre pagos pendientes
+    """
+    logger.info("🔄 Ejecutando reset semanal...")
+    
+    for user in users_manager.users.values():
+        if user.nivel != "premium":
+            continue
+        
+        # Calcular stats de la semana
+        user.calculate_weekly_stats()
+        
+        # Notificar al usuario
+        try:
+            payment_status = user.get_payment_status()
+            
+            message = "📅 *RESUMEN SEMANAL*\n"
+            message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+            message += f"Bank inicio: {payment_status['week_start_bank']:.2f} €\n"
+            message += f"Bank final: {payment_status['dynamic_bank_current']:.2f} €\n"
+            
+            if payment_status['weekly_profit'] > 0:
+                message += f"\n✅ Ganancia: +{payment_status['weekly_profit']:.2f} €\n"
+                message += f"💰 Comisión (20%): {payment_status['weekly_fee_due']:.2f} €\n"
+            elif payment_status['weekly_profit'] < 0:
+                message += f"\n📉 Pérdida: {payment_status['weekly_profit']:.2f} €\n"
+                message += f"💰 Comisión (20%): 0.00 € (no se cobra)\n"
+            else:
+                message += f"\n➖ Sin cambios esta semana\n"
+            
+            message += f"\n━━━━━━━━━━━━━━━━━━━━\n"
+            message += f"💳 *PAGO PRÓXIMA SEMANA:*\n"
+            message += f"• Base: 15.00 €\n"
+            message += f"• Plus: {payment_status['weekly_fee_due']:.2f} €\n"
+            message += f"• *TOTAL: {15.0 + payment_status['weekly_fee_due']:.2f} €*\n\n"
+            message += f"Usa /mi_deuda para ver detalles\n"
+            message += f"💬 Contacta al admin para pagar"
+            
+            await context.bot.send_message(
+                chat_id=user.chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"Notificación semanal enviada a {user.chat_id}")
+            
+        except Exception as e:
+            logger.error(f"Error notificando a {user.chat_id}: {e}")
+        
+        # Resetear ciclo para nueva semana
+        user.reset_weekly_cycle()
+    
+    # Guardar cambios
+    users_manager.save()
+    logger.info("✅ Reset semanal completado")
+
 # ========== RECOMPENSA SEMANAL AUTOMÁTICA =============
-async def send_weekly_referral_rewards():
+async def send_weekly_referral_rewards(context: ContextTypes.DEFAULT_TYPE):
     """
-    Calcula el top 3 de referidores premium de la semana y reparte el 50% de las comisiones variables generadas por el bot.
-    Envía mensaje a todos los usuarios y reinicia el ranking semanal.
+    Calcula el top 3 de referidores premium de la semana y reparte el 50% de las comisiones variables (20%) generadas.
     """
-    # Calcular fecha de inicio de la semana
-    now = datetime.now(timezone.utc)
-    week_start = now - timedelta(days=now.weekday())
-    # Calcular comisiones variables generadas por el bot en la semana
-    # Suponemos que performance_tracker.get_global_stats(days=7) da profit neto del bot
-    stats = performance_tracker.get_global_stats(days=7)
-    total_profit = stats.get('total_profit', 0)
-    if total_profit <= 0:
-        message = "🏆 Ranking de referidos de la semana\n\nNo hubo ganancias para repartir esta semana. ¡Sigue invitando amigos!"
+    logger.info("🏆 Calculando Top 3 semanal...")
+    
+    # Calcular pool: 50% de todas las comisiones del 20% cobradas esta semana
+    total_fees_collected = 0.0
+    for user in users_manager.users.values():
+        if user.nivel == "premium" and user.weekly_fee_due > 0:
+            total_fees_collected += user.weekly_fee_due
+    
+    pool = total_fees_collected * 0.5  # 50% del total de comisiones
+    
+    if pool <= 0:
+        message = "🏆 *TOP 3 REFERIDORES DE LA SEMANA*\n\n"
+        message += "No hubo comisiones para repartir esta semana.\n"
+        message += "¡Sigue invitando amigos premium!"
     else:
-        pool = total_profit * 0.5
-        # Calcular top 3 referidores premium (por cantidad de referidos premium activos nuevos en la semana)
-        users = list(users_manager.users.values())
+        # Calcular ranking por cantidad de referidos premium activos
         ranking = []
-        for user in users:
-            # Contar referidos premium activados en la semana
-            count = 0
+        for user in users_manager.users.values():
+            # Contar referidos premium activos
+            premium_refs = 0
             for ref_id in getattr(user, 'referred_users', []):
                 ref = users_manager.users.get(ref_id)
-                if ref and ref.is_premium_active():
-                    # Si el referido activó premium esta semana
-                    if ref.premium_expires_at:
-                        try:
-                            dt = datetime.fromisoformat(ref.premium_expires_at)
-                            if dt >= week_start:
-                                count += 1
-                        except Exception:
-                            continue
-            ranking.append({'user_id': user.chat_id, 'username': getattr(user, 'username', user.chat_id), 'count': count})
+                if ref and ref.nivel == "premium":
+                    premium_refs += 1
+            
+            if premium_refs > 0:
+                ranking.append({
+                    'user_id': user.chat_id,
+                    'username': getattr(user, 'username', user.chat_id),
+                    'count': premium_refs
+                })
+        
         ranking.sort(key=lambda x: x['count'], reverse=True)
+        
+        # Calcular premios: 50%, 30%, 20%
         premios = [0, 0, 0]
-        if len(ranking) > 0 and ranking[0]['count'] > 0:
+        if len(ranking) > 0:
             premios[0] = round(pool * 0.5, 2)
-        if len(ranking) > 1 and ranking[1]['count'] > 0:
+        if len(ranking) > 1:
             premios[1] = round(pool * 0.3, 2)
-        if len(ranking) > 2 and ranking[2]['count'] > 0:
+        if len(ranking) > 2:
             premios[2] = round(pool * 0.2, 2)
-        message = "🏆 Ranking de referidos de la semana\n"
+        
+        message = "🏆 *TOP 3 REFERIDORES DE LA SEMANA*\n"
+        message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+        message += f"💰 Pool total: {pool:.2f} €\n\n"
+        
         for i, r in enumerate(ranking[:3]):
-            if r['count'] > 0:
-                message += f"{i+1}º {r['username']} – {r['count']} referidos → {premios[i]} € premio\n"
-        message += "¡Sigue trayendo amigos y aumenta tu recompensa la próxima semana!"
-    # Enviar a todos los usuarios
-    all_users = users_manager.users.keys()
-    for user_id in all_users:
-        try:
-            await application.bot.send_message(chat_id=user_id, text=message)
-        except Exception as e:
-            logger.warning(f"No se pudo enviar ranking semanal a {user_id}: {e}")
+            medal = ["🥇", "🥈", "🥉"][i]
+            message += f"{medal} *{i+1}º lugar:* {r['username']}\n"
+            message += f"   👥 {r['count']} referidos premium\n"
+            message += f"   💰 Premio: {premios[i]:.2f} €\n\n"
+        
+        message += "¡Sigue trayendo referidos para el próximo ranking!"
+        
+        # Pagar a los ganadores
+        for i, r in enumerate(ranking[:3]):
+            if premios[i] > 0:
+                user = users_manager.users.get(r['user_id'])
+                if user:
+                    # Agregar premio a saldo de comisiones
+                    user.saldo_comision += premios[i]
+                    logger.info(f"Premio Top {i+1} a {r['user_id']}: {premios[i]:.2f} €")
+    
+    # Enviar mensaje a todos los usuarios premium
+    for user in users_manager.users.values():
+        if user.nivel == "premium":
+            try:
+                await context.bot.send_message(
+                    chat_id=user.chat_id,
+                    text=message,
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.warning(f"No se pudo enviar Top 3 a {user.chat_id}: {e}")
+    
+    users_manager.save()
+    logger.info("✅ Top 3 semanal completado")
+
 
 def schedule_weekly_referral_rewards():
     """Programa el envío semanal de recompensas de referidos los lunes a las 12:00."""
@@ -938,8 +1030,9 @@ async def cmd_marcar_pago(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     global application
-    # schedule_weekly_referral_rewards()  # Temporalmente desactivado - causa conflicto con event loop
     application = Application.builder().token(BOT_TOKEN).build()
+    
+    # Agregar handlers de comandos
     application.add_handler(CommandHandler("mi_posicion", mi_posicion_command))
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("referidos", cmd_referidos))
@@ -954,12 +1047,33 @@ def main():
     application.add_handler(CommandHandler("detectar_fraude", cmd_detectar_fraude))
     application.add_handler(CommandHandler("marcar_pago", cmd_marcar_pago))
     application.add_handler(CallbackQueryHandler(callback_query_handler))
+    
+    # Programar tareas semanales usando job_queue de telegram
+    job_queue = application.job_queue
+    
+    # Reset semanal: cada lunes a las 06:00 (hora del servidor)
+    job_queue.run_daily(
+        weekly_reset_and_notify,
+        time=datetime.time(hour=6, minute=0),
+        days=(0,),  # 0 = lunes
+        name="weekly_reset"
+    )
+    logger.info("✅ Scheduler: Reset semanal programado para lunes 06:00")
+    
+    # Top 3 semanal: cada lunes a las 12:00 (después del reset)
+    job_queue.run_daily(
+        send_weekly_referral_rewards,
+        time=datetime.time(hour=12, minute=0),
+        days=(0,),  # 0 = lunes
+        name="weekly_top3"
+    )
+    logger.info("✅ Scheduler: Top 3 semanal programado para lunes 12:00")
+    
     logger.info("Bot de comandos iniciado correctamente!")
     logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats, /mi_deuda")
     logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude, /marcar_pago")
-    # schedule_summaries()  # Temporalmente desactivado - causa conflicto con event loop
     
-    # Simplemente iniciar el bot sin configuraciones especiales
+    # Iniciar bot
     application.run_polling()
 
 if __name__ == '__main__':
