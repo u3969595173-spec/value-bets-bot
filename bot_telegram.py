@@ -1050,6 +1050,19 @@ def main():
     # Programar tareas semanales usando job_queue de telegram
     job_queue = application.job_queue
     
+    # Keep-alive: cada 10 minutos para evitar suspensión en Render free tier
+    async def keep_alive(context):
+        """Mantiene el bot activo para evitar suspensión en Render"""
+        logger.info("⏰ Keep-alive ping")
+    
+    job_queue.run_repeating(
+        keep_alive,
+        interval=600,  # 10 minutos = 600 segundos
+        first=60,      # Primer ping después de 1 minuto
+        name="keep_alive"
+    )
+    logger.info("✅ Keep-alive activado: ping cada 10 minutos")
+    
     # Reset semanal: cada lunes a las 06:00 (hora del servidor)
     from datetime import time as dt_time
     job_queue.run_daily(
