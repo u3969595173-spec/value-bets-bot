@@ -316,10 +316,18 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
         
         # Referidos
         elif text == "💰 Mis Referidos":
-            referral_link = f"https://t.me/{context.bot.username}?start={chat_id}"
+            # CORREGIDO: Usar referral_code en vez de chat_id
+            referral_code = user.referral_code if hasattr(user, 'referral_code') else chat_id
+            referral_link = f"https://t.me/{context.bot.username}?start={referral_code}"
             
             # Contar referidos totales y premium
             total_refs = len(user.referred_users) if hasattr(user, 'referred_users') else 0
+            
+            # DEBUG: Log para ver qué pasa
+            logger.info(f"DEBUG - Usuario {chat_id} tiene referred_users: {hasattr(user, 'referred_users')}")
+            if hasattr(user, 'referred_users'):
+                logger.info(f"DEBUG - Lista de referidos: {user.referred_users}")
+            
             premium_refs = 0
             if hasattr(user, 'referred_users'):
                 for ref_id in user.referred_users:
