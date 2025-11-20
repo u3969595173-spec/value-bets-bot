@@ -1240,33 +1240,61 @@ async def main_async():
         await application.initialize()
         await application.start()
         
-        # Agregar error handler para conflictos
-        async def error_handler(update, context):
-            """Maneja errores durante la ejecución del bot"""
-            error = context.error
-            if "Conflict" in str(error):
-                logger.error("❌ CONFLICT: Otra instancia detectada. Deteniendo bot...")
-                # Detener el updater y salir
-                if application.updater.running:
-                    await application.updater.stop()
-                import sys
-                sys.exit(1)
-            else:
-                logger.error(f"Error en bot: {error}", exc_info=context.error)
+        # Usar webhook si estamos en Render (tiene URL pública), sino polling
+        webhook_url = os.getenv('RENDER_EXTERNAL_URL')  # Render proporciona esta variable
         
-        application.add_error_handler(error_handler)
-        
-        await application.updater.start_polling(drop_pending_updates=True)
-        
-        logger.info("✅ Bot de comandos corriendo...")
-        
-        # Mantener el bot corriendo indefinidamente
-        try:
-            # Esperar indefinidamente mientras el bot está activo
+        if webhook_url:
+            # MODO WEBHOOK (en Render)
+            webhook_path = f"/webhook/{BOT_TOKEN}"
+            full_webhook_url = f"{webhook_url}{webhook_path}"
+            
+            logger.info(f"🌐 Configurando webhook: {full_webhook_url}")
+            
+            await application.bot.set_webhook(
+                url=full_webhook_url,
+                drop_pending_updates=True
+            )
+            
+            # Importar aquí para evitar error si no está disponible
+            from telegram.ext import WebhookHandler
+            
+            # El servidor HTTP de run_render.py manejará las requests
+            # Solo necesitamos mantener la aplicación viva
+            logger.info("✅ Bot de comandos en modo WEBHOOK")
+            
+            # Mantener vivo indefinidamente
             while True:
-                await asyncio.sleep(3600)  # Sleep 1 hora, se despertará con las actualizaciones
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("Deteniendo bot de comandos...")
+                await asyncio.sleep(3600)
+                
+        else:
+            # MODO POLLING (local)
+            logger.info("📡 Usando polling (modo local)")
+            
+            # Agregar error handler para conflictos
+            async def error_handler(update, context):
+                """Maneja errores durante la ejecución del bot"""
+                error = context.error
+                if "Conflict" in str(error):
+                    logger.error("❌ CONFLICT: Otra instancia detectada. Deteniendo bot...")
+                    if application.updater.running:
+                        await application.updater.stop()
+                    import sys
+                    sys.exit(1)
+                else:
+                    logger.error(f"Error en bot: {error}", exc_info=context.error)
+            
+            application.add_error_handler(error_handler)
+            
+            await application.updater.start_polling(drop_pending_updates=True)
+            
+            logger.info("✅ Bot de comandos corriendo en POLLING...")
+            
+            # Mantener el bot corriendo indefinidamente
+            try:
+                while True:
+                    await asyncio.sleep(3600)
+            except (KeyboardInterrupt, SystemExit):
+                logger.info("Deteniendo bot de comandos...")
         
     except Exception as e:
         if "Conflict" in str(e):
@@ -1278,7 +1306,9 @@ async def main_async():
     finally:
         # Cleanup
         try:
-            if application.updater.running:
+            if webhook_url:
+                await application.bot.delete_webhook()
+            if hasattr(application, 'updater') and application.updater and application.updater.running:
                 await application.updater.stop()
             if application.running:
                 await application.stop()
