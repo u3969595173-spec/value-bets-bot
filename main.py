@@ -1296,9 +1296,15 @@ class ValueBotMonitor:
         # Iniciar el bot de Telegram (inicializar y empezar)
         logger.info("Iniciando bot de Telegram para comandos...")
         
+        # Espera inicial en producción para evitar conflictos con instancia anterior
+        if os.getenv('RENDER'):
+            initial_wait = 30
+            logger.info(f"🔄 Entorno Render detectado. Esperando {initial_wait}s para evitar conflictos con instancia anterior...")
+            await asyncio.sleep(initial_wait)
+        
         # Retry logic para evitar conflictos temporales durante deploy
         max_retries = 3
-        retry_delay = 5
+        retry_delay = 10  # Aumentado de 5 a 10 segundos
         
         for attempt in range(max_retries):
             try:
@@ -1309,10 +1315,11 @@ class ValueBotMonitor:
                 break
             except Exception as e:
                 if "Conflict" in str(e) and attempt < max_retries - 1:
-                    logger.warning(f"Conflicto detectado (intento {attempt + 1}/{max_retries}), esperando {retry_delay}s...")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
+                    wait_time = retry_delay * (2 ** attempt)  # 10s, 20s, 40s
+                    logger.warning(f"⚠️ Conflicto detectado (intento {attempt + 1}/{max_retries}), esperando {wait_time}s...")
+                    await asyncio.sleep(wait_time)
                 else:
+                    logger.error(f"❌ No se pudo iniciar el bot después de {max_retries} intentos: {e}")
                     raise
         
         while True:
