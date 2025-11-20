@@ -167,10 +167,13 @@ class ValueScanner:
                             # Formatear fecha y hora del evento
                             commence_time_str = ""
                             try:
-                                dt = datetime.fromisoformat(commence_str.replace('Z', '+00:00'))
-                                commence_time_str = dt.strftime("%Y-%m-%d %H:%M UTC")
+                                if isinstance(commence_time, datetime):
+                                    commence_time_str = commence_time.strftime("%Y-%m-%d %H:%M UTC")
+                                else:
+                                    dt = datetime.fromisoformat(str(commence_value).replace('Z', '+00:00'))
+                                    commence_time_str = dt.strftime("%Y-%m-%d %H:%M UTC")
                             except:
-                                commence_time_str = commence_str or 'Sin fecha'
+                                commence_time_str = str(commence_value) if commence_value else 'Sin fecha'
                             event_name = f"{home} vs {away}"
                             point_value = out.get('point')
                             results.append({
