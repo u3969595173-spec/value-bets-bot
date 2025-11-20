@@ -1,5 +1,6 @@
 """
-run_render.py - Bot + HTTP server con webhook para Render - v5
+run_render.py - Bot + HTTP server con webhook para Render - v6
+Actualizado: 2025-11-20 22:00
 """
 import sys
 import os
