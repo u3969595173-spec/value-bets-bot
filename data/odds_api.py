@@ -23,7 +23,7 @@ class OddsFetcher:
     async def _fetch_from_theodds(self, sports: List[str]):
         # Construir URL completa con apiKey en query string
         base_url = "https://api.the-odds-api.com/v4/sports/{sport}/odds/"
-        query_params = "?apiKey={apiKey}&regions=eu,us,au&markets=h2h&oddsFormat=decimal"
+        query_params = "?apiKey={apiKey}&regions=eu,us,au&markets=h2h,spreads,totals&oddsFormat=decimal"
         
         headers = {
             'User-Agent': 'ValueBetsBot/1.0',
