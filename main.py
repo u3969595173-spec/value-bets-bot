@@ -96,6 +96,11 @@ REQUIRE_LINE_MOVEMENT = os.getenv("REQUIRE_LINE_MOVEMENT", "true").lower() == "t
 REQUIRE_FAVORABLE_MOVEMENT = os.getenv("REQUIRE_FAVORABLE_MOVEMENT", "true").lower() == "true"  # Solo RLM favorable
 MIN_VALUE_THRESHOLD = float(os.getenv("MIN_VALUE_THRESHOLD", "1.12"))  # Value mínimo global
 
+# Ventana horaria para envío de alertas (hora de España)
+SPAIN_TZ = ZoneInfo("Europe/Madrid")
+ALERT_SEND_HOUR_START = 14  # 2 PM España
+ALERT_SEND_HOUR_END = 22     # 10 PM España
+
 # Deportes a monitorear (OPTIMIZADO: 4 deportes para 25-30 días con 20k créditos)
 SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp").split(",")
 
@@ -1185,7 +1190,16 @@ Tu saldo sigue disponible.
     def get_events_starting_soon(self, max_hours: float = ALERT_WINDOW_HOURS) -> List[Dict]:
         """
         Filtra eventos que empiezan en menos de max_hours
+        PERO solo retorna si estamos en ventana de envío (2 PM - 10 PM España)
         """
+        # Verificar si estamos en ventana horaria de España
+        spain_time = datetime.now(SPAIN_TZ)
+        current_hour = spain_time.hour
+        
+        if not (ALERT_SEND_HOUR_START <= current_hour < ALERT_SEND_HOUR_END):
+            logger.info(f"⏰ Fuera de ventana de envío: {spain_time.strftime('%H:%M')} España (permitido {ALERT_SEND_HOUR_START}:00-{ALERT_SEND_HOUR_END}:00)")
+            return []  # No enviar alertas fuera de 2 PM - 10 PM España
+        
         now = datetime.now(timezone.utc)
         cutoff_time = now + timedelta(hours=max_hours)
         
@@ -1196,6 +1210,7 @@ Tu saldo sigue disponible.
                 if now <= commence_time <= cutoff_time:
                     events_soon.append(event_data)
         
+        logger.info(f"✅ Ventana activa: {spain_time.strftime('%H:%M')} España - {len(events_soon)} eventos encontrados")
         return events_soon
 
     def get_next_update_time(self) -> datetime:
