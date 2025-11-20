@@ -229,12 +229,15 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     selection = candidate['selection']
     odd = candidate['odds']
     bookmaker = candidate.get('bookmaker', 'N/A')
+    original_bookmaker = bookmaker
+    
     # Buscar cuota de Bet365 para la misma línea, mercado y selección
     event_bookmakers = candidate.get('event_bookmakers') or candidate.get('bookmakers')
     bet365_odd = None
     if event_bookmakers:
         for bm in event_bookmakers:
-            if bm.get('title','').lower() == 'bet365':
+            bm_name = bm.get('title','').lower() or bm.get('key','').lower()
+            if 'bet365' in bm_name:
                 for m in bm.get('markets', []):
                     if m.get('key') == candidate.get('market_key'):
                         for out in m.get('outcomes', []):
@@ -242,7 +245,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
                             same_sel = out.get('name','').strip().lower() == candidate['selection'].strip().lower()
                             same_point = True
                             if 'point' in candidate and candidate['point'] is not None:
-                                same_point = abs(float(out.get('point',0))-float(candidate['point'])) < 1e-6
+                                same_point = abs(float(out.get('point',0))-float(candidate['point'])) < 0.1
                             if same_sel and same_point:
                                 bet365_odd = float(out.get('price'))
                                 break
@@ -250,9 +253,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
                         break
             if bet365_odd is not None:
                 break
-    if bet365_odd is not None:
-        odd = bet365_odd
-        bookmaker = 'Bet365'
+    
     point = candidate.get('point')
 
     # Detectar tipo de mercado si no viene market_key
@@ -311,8 +312,32 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
         lines.append(f"   ✅ **Selección:** {selection}")
         lines.append(f"   💰 **Cuota:** {odd:.2f}")
 
-
-    lines.append(f"\n🏠 **Casa de apuestas:** {bookmaker}")
+    lines.append("")
+    lines.append(f"🏠 **Casa recomendada:** {original_bookmaker}")
+    
+    # Mostrar si la línea fue ajustada
+    if candidate.get('was_adjusted'):
+        original_odds_val = candidate.get('original_odds')
+        original_point_val = candidate.get('original_point')
+        lines.append("")
+        lines.append(f"🔧 **Línea ajustada automáticamente:**")
+        if original_point_val is not None:
+            lines.append(f"   Original: {selection} {original_point_val} @ {original_odds_val:.2f}")
+            lines.append(f"   Ajustada: {selection} {point} @ {odd:.2f}")
+        else:
+            lines.append(f"   Original: @ {original_odds_val:.2f}")
+            lines.append(f"   Ajustada: @ {odd:.2f}")
+        lines.append(f"   💡 Línea más conservadora para mejor control")
+    
+    # Mostrar cuota de Bet365 si existe y es diferente
+    if bet365_odd is not None and abs(bet365_odd - odd) > 0.01:
+        lines.append("")
+        lines.append(f"💎 **En Bet365:** {bet365_odd:.2f}")
+        if bet365_odd < odd:
+            diff = ((odd / bet365_odd) - 1) * 100
+            lines.append(f"   ℹ️ {original_bookmaker} tiene {diff:.1f}% mejor cuota")
+        else:
+            lines.append(f"   ℹ️ Disponible también en Bet365")
 
     # --- PICK EXPLICADO ---
     lines.append("")
@@ -426,10 +451,9 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     
     # Recomendación de stake
     lines.append("💰 **GESTIÓN DE BANKROLL:**")
-    lines.append(f"💵 **Bankroll actual:** ${getattr(user, 'bankroll', 1000):.2f}")
-    lines.append(f"🎯 **Stake recomendado:** ${stake:.2f}")
-    bankroll = getattr(user, 'bankroll', 1000)
-    lines.append(f"📊 **Porcentaje:** {(stake/bankroll)*100:.1f}%")
+    bankroll = getattr(user, 'dynamic_bank', getattr(user, 'bankroll', 1000))
+    lines.append(f"💵 **Bankroll actual:** ${bankroll:.2f}")
+    lines.append(f"🎯 **Stake:** 10% (${stake:.2f})")
     
     # Score final
     if candidate.get('final_score', 0) > 0:

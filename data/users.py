@@ -107,6 +107,11 @@ class User:
         self.premium_expires_at = premium_expires_at
         self.is_permanent_premium = is_permanent_premium
         
+        # Sistema de semanas gratis (5 referidos = 1 semana)
+        self.free_weeks_available = 0  # Semanas gratis disponibles para canjear
+        self.free_weeks_redeemed = 0  # Total de semanas canjeadas
+        self.pending_redemption = False  # Si tiene solicitud de canje pendiente
+        
         # Sistema de comisiones (NUEVO)
         self.referrals_paid = referrals_paid  # Cantidad de referidos que pagaron
         self.saldo_comision = saldo_comision  # Saldo acumulado en USD
@@ -126,6 +131,14 @@ class User:
         self.weekly_fee_paid = weekly_fee_paid
         self.base_fee_paid = base_fee_paid
         self.week_start_date = week_start_date or self._get_current_date()
+        
+        # Ganancias de referidos (reparto semanal)
+        self.weekly_referral_earnings = 0.0  # Ganancias del reparto semanal
+        
+        # Sistema de retiros
+        self.pending_withdrawal = False  # Si tiene solicitud de retiro pendiente
+        self.withdrawal_amount = 0.0  # Monto del retiro pendiente
+        self.withdrawal_history = []  # Historial de retiros: [{date, amount, status}]
         
         # Sistema de control de pagos
         self.payment_status = payment_status  # "pending" o "paid"
@@ -185,6 +198,39 @@ class User:
         self.premium_expires_at = new_expiry.isoformat()
         self.premium_weeks_earned += 1
         self.nivel = "premium"
+    
+    def calculate_free_weeks_earned(self) -> int:
+        """
+        Calcula cuántas semanas gratis ha ganado por referidos premium.
+        5 referidos premium activos = 1 semana gratis
+        
+        Returns:
+            Número de semanas gratis ganadas
+        """
+        if not hasattr(self, 'referred_users') or not self.referred_users:
+            return 0
+        
+        # Importar aquí para evitar circular import
+        premium_count = 0
+        from data.users import get_users_manager
+        manager = get_users_manager()
+        
+        for ref_id in self.referred_users:
+            ref_user = manager.get_user(ref_id)
+            if ref_user and ref_user.is_premium_active():
+                premium_count += 1
+        
+        # 5 referidos = 1 semana
+        weeks_earned = premium_count // 5
+        return weeks_earned
+    
+    def update_free_weeks(self):
+        """
+        Actualiza las semanas gratis disponibles basándose en referidos premium actuales.
+        """
+        total_earned = self.calculate_free_weeks_earned()
+        already_redeemed = getattr(self, 'free_weeks_redeemed', 0)
+        self.free_weeks_available = max(0, total_earned - already_redeemed)
     
     # ================================
     # SISTEMA DE COMISIONES (NUEVO)
@@ -367,31 +413,22 @@ class User:
     def calculate_stake(self, odd: float, prob: float) -> float:
         """
         Calcula el stake recomendado para usuarios premium.
+        Siempre devuelve 10% del bank dinámico.
         
         Args:
             odd: Cuota de la apuesta
             prob: Probabilidad estimada (0-1)
         
         Returns:
-            Stake en unidades monetarias
+            Stake en unidades monetarias (10% del dynamic_bank)
         """
         if self.nivel != "premium":
             return 0.0
         
-        if STAKE_METHOD == "kelly":
-            # Criterio de Kelly: f = (p*odd - 1) / (odd - 1)
-            # Aplicamos fracción para reducir riesgo
-            kelly_fraction = ((prob * odd) - 1) / (odd - 1)
-            kelly_fraction = max(0, min(kelly_fraction, 0.5))  # Cap entre 0 y 50%
-            stake = self.bankroll * kelly_fraction * FRACTION_KELLY
-        else:  # fixed_percentage
-            stake = self.bankroll * (FIXED_PERCENTAGE / 100)
+        # Stake fijo: 10% del bank dinámico
+        stake = self.dynamic_bank * 0.10
         
-        # Mínimo 1, máximo 10% del bankroll
-        min_stake = 1.0
-        max_stake = self.bankroll * 0.10
-        
-        return max(min_stake, min(stake, max_stake))
+        return stake
     
     def update_bankroll(self, bet_result: Dict):
         """
