@@ -1025,7 +1025,7 @@ async def cmd_marcar_pago(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_activar_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comando admin: /activar_premium <user_id> [semanas]
+    Comando admin: /activar_premium <@username o user_id> [semanas]
     Activa premium cuando recibes comprobante de pago
     """
     admin_id = str(update.effective_user.id)
@@ -1037,19 +1037,32 @@ async def cmd_activar_premium(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
-            "❌ Uso: /activar_premium <user_id> [semanas]\n"
-            "Ejemplo: /activar_premium 123456789 1"
+            "❌ Uso: /activar_premium <@username o user_id> [semanas]\n"
+            "Ejemplos:\n"
+            "  /activar_premium @juan_perez 1\n"
+            "  /activar_premium 123456789 1"
         )
         return
     
-    user_id = context.args[0]
+    user_identifier = context.args[0]
     semanas = int(context.args[1]) if len(context.args) > 1 else 1
     
     try:
-        user = users_manager.get_user(user_id)
-        if not user:
-            await update.message.reply_text(f"❌ Usuario {user_id} no encontrado")
-            return
+        # Si empieza con @, buscar por username
+        if user_identifier.startswith('@'):
+            username = user_identifier[1:]  # Quitar el @
+            user = users_manager.get_user_by_username(username)
+            if not user:
+                await update.message.reply_text(f"❌ Usuario @{username} no encontrado")
+                return
+            user_id = user.user_id
+        else:
+            # Buscar por user_id directamente
+            user_id = user_identifier
+            user = users_manager.get_user(user_id)
+            if not user:
+                await update.message.reply_text(f"❌ Usuario {user_id} no encontrado")
+                return
         
         # Activar premium
         user.add_free_premium_week(semanas)
@@ -1077,7 +1090,7 @@ async def cmd_activar_premium(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def cmd_reiniciar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comando admin: /reiniciar_saldo <user_id>
+    Comando admin: /reiniciar_saldo <@username o user_id>
     Reinicia saldo de referidos a 0 después de pagar al usuario
     """
     admin_id = str(update.effective_user.id)
@@ -1089,14 +1102,28 @@ async def cmd_reiniciar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
-            "❌ Uso: /reiniciar_saldo <user_id>\n"
-            "Ejemplo: /reiniciar_saldo 123456789"
+            "❌ Uso: /reiniciar_saldo <@username o user_id>\n"
+            "Ejemplos:\n"
+            "  /reiniciar_saldo @juan_perez\n"
+            "  /reiniciar_saldo 123456789"
         )
         return
     
-    user_id = context.args[0]
+    user_identifier = context.args[0]
     
     try:
+        # Si empieza con @, buscar por username
+        if user_identifier.startswith('@'):
+            username = user_identifier[1:]  # Quitar el @
+            user = users_manager.get_user_by_username(username)
+            if not user:
+                await update.message.reply_text(f"❌ Usuario @{username} no encontrado")
+                return
+            user_id = user.user_id
+        else:
+            # Usar user_id directamente
+            user_id = user_identifier
+        
         stats = referral_system.get_user_stats(user_id)
         if not stats:
             await update.message.reply_text(f"❌ Usuario {user_id} no encontrado en sistema de referidos")

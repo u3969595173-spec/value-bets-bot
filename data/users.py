@@ -642,6 +642,13 @@ class UsersManager:
                 return user
         return None
     
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """Busca un usuario por su username de Telegram."""
+        for user in self.users.values():
+            if user.username and user.username.lower() == username.lower():
+                return user
+        return None
+    
     def get_referral_stats(self, chat_id: str) -> Dict:
         """Obtiene estadísticas de referidos para un usuario."""
         user = self.get_user(chat_id)
