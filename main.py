@@ -1916,15 +1916,14 @@ Tu saldo sigue disponible.
         for candidate in value_candidates:
             event_bookmakers = candidate.get('event_bookmakers', [])
             
-            # PASO 1: Buscar cuota de Bet365 PRIMERO
-            bet365_odd = None
-            bet365_bookmaker = None
-            logger.info(f"🔍 DEBUG: Buscando Bet365 para {candidate.get('selection')} @ {candidate.get('odds')}, bookmakers disponibles: {len(event_bookmakers)}")
+            # PASO 1: Buscar cuota de William Hill PRIMERO (casa estándar europea)
+            william_hill_odd = None
+            william_hill_bookmaker = None
+            logger.info(f"🔍 Buscando William Hill para {candidate.get('selection')} @ {candidate.get('odds')}")
             if event_bookmakers:
                 for bm in event_bookmakers:
                     bm_name = bm.get('title', '').lower() or bm.get('key', '').lower()
-                    logger.info(f"🔍 DEBUG: Revisando bookmaker: {bm_name}")
-                    if 'bet365' in bm_name:
+                    if 'william hill' in bm_name or 'williamhill' in bm_name:
                         for m in bm.get('markets', []):
                             if m.get('key') == candidate.get('market_key'):
                                 for out in m.get('outcomes', []):
@@ -1934,27 +1933,27 @@ Tu saldo sigue disponible.
                                     if 'point' in candidate and candidate['point'] is not None:
                                         same_point = abs(float(out.get('point', 0)) - float(candidate['point'])) < 0.1
                                     if same_sel and same_point:
-                                        bet365_odd = float(out.get('price'))
-                                        bet365_bookmaker = bm.get('title', 'Bet365')
+                                        william_hill_odd = float(out.get('price'))
+                                        william_hill_bookmaker = bm.get('title', 'William Hill')
                                         break
-                                if bet365_odd is not None:
+                                if william_hill_odd is not None:
                                     break
-                        if bet365_odd is not None:
+                        if william_hill_odd is not None:
                             break
             
-            # Si encontramos Bet365, actualizar el candidato ANTES de todo
-            if bet365_odd is not None:
-                logger.info(f"✅ Bet365 encontrada: {candidate['selection']} @ {bet365_odd} (original: @ {candidate['odds']})")
+            # Si encontramos William Hill, actualizar el candidato ANTES de todo
+            if william_hill_odd is not None:
+                logger.info(f"✅ William Hill encontrada: {candidate['selection']} @ {william_hill_odd} (original: @ {candidate['odds']})")
                 candidate['original_odds'] = candidate['odds']
                 candidate['original_bookmaker'] = candidate.get('bookmaker', 'N/A')
-                candidate['odds'] = bet365_odd
-                candidate['bookmaker'] = bet365_bookmaker
-                candidate['was_bet365_adjusted'] = True
-                # Recalcular value con cuota de Bet365
+                candidate['odds'] = william_hill_odd
+                candidate['bookmaker'] = william_hill_bookmaker
+                candidate['was_bet365_adjusted'] = True  # Reutilizamos flag para indicar ajuste a casa estándar
+                # Recalcular value con cuota de William Hill
                 prob = candidate.get('prob', 0)
                 if prob > 0:
-                    candidate['value'] = bet365_odd * prob
-                    candidate['implied_probability'] = 1.0 / bet365_odd if bet365_odd > 0 else 0
+                    candidate['value'] = william_hill_odd * prob
+                    candidate['implied_probability'] = 1.0 / william_hill_odd if william_hill_odd > 0 else 0
             
             # PASO 2: Luego intentar ajustar línea si es necesario
             adjusted = adjust_line_if_needed(candidate, event_bookmakers)

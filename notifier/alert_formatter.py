@@ -98,14 +98,14 @@ def format_free_alert(candidate: Dict) -> str:
     lines.append("")
     lines.append(f"🏠 **Casa de apuestas:** {bookmaker}")
     
-    # Mostrar si se usó Bet365
+    # Mostrar si se usó casa estándar
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
         original_bm = candidate.get('original_bookmaker', 'N/A')
         lines.append("")
-        lines.append(f"💎 **Cuota ajustada a Bet365:**")
+        lines.append(f"💎 **Cuota ajustada a casa estándar:**")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
-        lines.append(f"   Bet365: @ {odd:.2f} ✅")
+        lines.append(f"   {bookmaker}: @ {odd:.2f} ✅")
 
     # --- PICK EXPLICADO ---
     lines.append("")
@@ -277,14 +277,14 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     lines.append("")
     lines.append(f"🏠 **Casa recomendada:** {original_bookmaker}")
     
-    # Mostrar si se usó Bet365
+    # Mostrar si se usó William Hill (casa estándar)
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
         original_bm = candidate.get('original_bookmaker', 'N/A')
         lines.append("")
-        lines.append(f"💎 **Cuota ajustada a Bet365:**")
+        lines.append(f"💎 **Cuota ajustada a casa estándar:**")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
-        lines.append(f"   Bet365: @ {odd:.2f} ✅")
+        lines.append(f"   {bookmaker}: @ {odd:.2f} ✅")
         if odd < original_odds_val:
             lines.append(f"   ℹ️ Cuota más conservadora y confiable")
     
