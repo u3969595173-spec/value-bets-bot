@@ -1086,8 +1086,19 @@ def main():
     logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats, /mi_deuda")
     logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude, /marcar_pago")
     
-    # Iniciar bot
-    application.run_polling()
+    # Iniciar bot con manejo de errores de conflicto
+    try:
+        application.run_polling(
+            drop_pending_updates=True,  # Ignorar updates pendientes al iniciar
+            close_loop=False
+        )
+    except Exception as e:
+        if "Conflict" in str(e):
+            logger.error("❌ CONFLICT ERROR: Otra instancia está corriendo. Cerrando esta instancia...")
+            import sys
+            sys.exit(1)
+        else:
+            raise
 
 if __name__ == '__main__':
     main()
