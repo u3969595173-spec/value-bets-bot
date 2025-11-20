@@ -27,30 +27,14 @@ def run_http_server():
     server.serve_forever()
 
 async def run_both_bots():
-    """Ejecuta ambos bots en paralelo usando asyncio.gather()"""
-    import bot_telegram
+    """Ejecuta ambos bots en paralelo - versión simplificada"""
+    print("[RUN_RENDER v4] ✅ Arrancando solo bot de PRONÓSTICOS (main.py)...")
+    print("[RUN_RENDER v4] ⚠️ Bot de comandos deshabilitado temporalmente por conflictos de event loop")
+    
     import main
     
-    # Crear tareas para ambos bots
-    async def run_telegram_bot():
-        """Wrapper para ejecutar bot_telegram.main() de forma async"""
-        loop = asyncio.get_event_loop()
-        # bot_telegram.main() es sync, lo ejecutamos en executor
-        await loop.run_in_executor(None, bot_telegram.main)
-    
-    async def run_prediction_bot():
-        """Ejecuta el bot de predicciones"""
-        # main.main() ya es async y llama a ValueBotMonitor().run_continuous_monitoring()
-        await main.main()
-    
-    print("[RUN_RENDER v4] ✅ Arrancando bot de COMANDOS (bot_telegram.py)...")
-    print("[RUN_RENDER v4] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
-    
-    # Ejecutar ambos bots en paralelo
-    await asyncio.gather(
-        run_telegram_bot(),
-        run_prediction_bot()
-    )
+    # Solo ejecutar el bot de predicciones por ahora
+    await main.main()
 
 if __name__ == "__main__":
     print("[RUN_RENDER v4] Iniciando bot completo: Comandos + Pronósticos con HTTP health server...")
