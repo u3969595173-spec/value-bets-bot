@@ -1295,10 +1295,25 @@ class ValueBotMonitor:
         
         # Iniciar el bot de Telegram (inicializar y empezar)
         logger.info("Iniciando bot de Telegram para comandos...")
-        await self.telegram_app.initialize()
-        await self.telegram_app.start()
-        await self.telegram_app.updater.start_polling()
-        logger.info("Bot de Telegram activo")
+        
+        # Retry logic para evitar conflictos temporales durante deploy
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                await self.telegram_app.initialize()
+                await self.telegram_app.start()
+                await self.telegram_app.updater.start_polling(drop_pending_updates=True)
+                logger.info("Bot de Telegram activo")
+                break
+            except Exception as e:
+                if "Conflict" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Conflicto detectado (intento {attempt + 1}/{max_retries}), esperando {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise
         
         while True:
             try:
