@@ -1106,6 +1106,72 @@ Tu saldo se ha reiniciado a 0€.
         )
         logger.info(f"Admin aprobó retiro de {withdrawal_amount:.2f}€ para {target_user_id}")
     
+    async def handle_asignar_referido(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /asignar_referido - asigna manualmente un referido"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) < 2:
+            await update.message.reply_text(
+                "❌ Uso: /asignar_referido @usuario_referido @referente\n\n"
+                "Ejemplo: `/asignar_referido @juan123 @admin`"
+            )
+            return
+        
+        referred_input = context.args[0].replace("@", "")
+        referrer_input = context.args[1].replace("@", "")
+        
+        # Buscar usuario referido
+        referred_user = self.users_manager.get_user_by_username(referred_input)
+        if not referred_user:
+            referred_user = self.users_manager.get_user(referred_input)
+        
+        if not referred_user:
+            await update.message.reply_text(f"❌ Usuario referido '{referred_input}' no encontrado")
+            return
+        
+        # Buscar referente
+        referrer_user = self.users_manager.get_user_by_username(referrer_input)
+        if not referrer_user:
+            referrer_user = self.users_manager.get_user(referrer_input)
+        
+        if not referrer_user:
+            await update.message.reply_text(f"❌ Referente '{referrer_input}' no encontrado")
+            return
+        
+        # Asignar referido
+        referred_user.referrer_id = referrer_user.chat_id
+        
+        # Agregar a lista de referidos del referente
+        if not hasattr(referrer_user, 'referred_users'):
+            referrer_user.referred_users = []
+        
+        if referred_user.chat_id not in referrer_user.referred_users:
+            referrer_user.referred_users.append(referred_user.chat_id)
+        
+        self.users_manager.save()
+        
+        await update.message.reply_text(
+            f"✅ Referido asignado correctamente\n\n"
+            f"👤 Usuario: @{referred_user.username}\n"
+            f"🔗 Referente: @{referrer_user.username}\n\n"
+            f"Total referidos de @{referrer_user.username}: {len(referrer_user.referred_users)}"
+        )
+        logger.info(f"Admin asignó @{referred_user.username} como referido de @{referrer_user.username}")
+        
+        # Notificar al referente
+        try:
+            msg = f"🎉 **¡Nuevo referido asignado!**\n\n"
+            msg += f"👤 Usuario: @{referred_user.username}\n"
+            msg += f"💰 Ganarás 10% de comisión cuando active Premium\n"
+            msg += f"📊 Total referidos: {len(referrer_user.referred_users)}"
+            await self.notifier.send_message(referrer_user.chat_id, msg)
+        except Exception as e:
+            logger.error(f"Error notificando a referente {referrer_user.chat_id}: {e}")
+    
     async def handle_rechazar_retiro(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /rechazar_retiro - rechaza retiro de ganancias"""
         chat_id = str(update.effective_chat.id)
@@ -1174,6 +1240,7 @@ Tu saldo sigue disponible.
         self.telegram_app.add_handler(CommandHandler("rechazar_canje", self.handle_rechazar_canje))
         self.telegram_app.add_handler(CommandHandler("aprobar_retiro", self.handle_aprobar_retiro))
         self.telegram_app.add_handler(CommandHandler("rechazar_retiro", self.handle_rechazar_retiro))
+        self.telegram_app.add_handler(CommandHandler("asignar_referido", self.handle_asignar_referido))
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
