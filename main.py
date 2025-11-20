@@ -1851,6 +1851,26 @@ Tu saldo sigue disponible.
             alert_key = f"{user.chat_id}_{candidate.get('id', '')}_{candidate.get('selection', '')}"
             self.sent_alerts.add(alert_key)
             
+            # Registrar apuesta en el usuario para tracking de banco dinámico
+            bet_data = {
+                'event_id': candidate.get('id', ''),
+                'selection': final_selection,
+                'odds': final_odds,
+                'stake': stake,
+                'market': candidate.get('market', 'h2h'),
+                'point': final_point,
+                'sport': candidate.get('sport_key', ''),
+                'commence_time': candidate.get('commence_time'),
+                'home_team': candidate.get('home_team', ''),
+                'away_team': candidate.get('away_team', ''),
+                'status': 'pending'
+            }
+            user.record_bet(bet_data)
+            logger.info(f"📊 Apuesta registrada para tracking: {final_selection} @ {final_odds:.2f}, stake: {stake:.2f}€")
+            
+            # Guardar usuarios después de registrar apuesta
+            self.users_manager.save()
+            
             logger.info(f" Alert sent to {user.chat_id}: {candidate.get('selection', 'Unknown')}")
             logger.info(f"DEBUG: About to return True")
             return True
