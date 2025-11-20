@@ -193,11 +193,13 @@ class ValueBotMonitor:
         referrer_id = None
         if context.args and len(context.args) > 0:
             referral_code = context.args[0]
-            # Buscar referrer por chat_id
-            referrer = self.users_manager.get_user(referral_code)
+            # CORREGIDO: Buscar referrer por REFERRAL_CODE (no por chat_id)
+            referrer = self.users_manager.find_user_by_referral_code(referral_code)
             if referrer:
-                referrer_id = referral_code
-                logger.info(f"🔗 Referral detectado: {referral_code} → nuevo usuario {chat_id}")
+                referrer_id = referrer.chat_id  # Guardar el chat_id del referente
+                logger.info(f"🔗 Referral detectado: código {referral_code} → referente {referrer_id} → nuevo usuario {chat_id}")
+            else:
+                logger.warning(f"⚠️ Código de referido inválido: {referral_code}")
         
         # Registrar usuario si no existe
         user = self.users_manager.get_user(chat_id)
