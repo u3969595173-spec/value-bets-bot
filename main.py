@@ -1910,11 +1910,51 @@ Tu saldo sigue disponible.
                         candidate['event_bookmakers'] = monitored_event.get('bookmakers', [])
                         break
         
-        # Ajustar líneas si cuotas > 2.1
+        # Ajustar líneas si cuotas > 2.1 Y buscar Bet365
         from utils.line_adjuster import adjust_line_if_needed
         adjusted_candidates = []
         for candidate in value_candidates:
             event_bookmakers = candidate.get('event_bookmakers', [])
+            
+            # PASO 1: Buscar cuota de Bet365 PRIMERO
+            bet365_odd = None
+            bet365_bookmaker = None
+            if event_bookmakers:
+                for bm in event_bookmakers:
+                    bm_name = bm.get('title', '').lower() or bm.get('key', '').lower()
+                    if 'bet365' in bm_name:
+                        for m in bm.get('markets', []):
+                            if m.get('key') == candidate.get('market_key'):
+                                for out in m.get('outcomes', []):
+                                    # Comparar selección y punto (línea) si aplica
+                                    same_sel = out.get('name', '').strip().lower() == candidate['selection'].strip().lower()
+                                    same_point = True
+                                    if 'point' in candidate and candidate['point'] is not None:
+                                        same_point = abs(float(out.get('point', 0)) - float(candidate['point'])) < 0.1
+                                    if same_sel and same_point:
+                                        bet365_odd = float(out.get('price'))
+                                        bet365_bookmaker = bm.get('title', 'Bet365')
+                                        break
+                                if bet365_odd is not None:
+                                    break
+                        if bet365_odd is not None:
+                            break
+            
+            # Si encontramos Bet365, actualizar el candidato ANTES de todo
+            if bet365_odd is not None:
+                logger.info(f"✅ Bet365 encontrada: {candidate['selection']} @ {bet365_odd} (original: @ {candidate['odds']})")
+                candidate['original_odds'] = candidate['odds']
+                candidate['original_bookmaker'] = candidate.get('bookmaker', 'N/A')
+                candidate['odds'] = bet365_odd
+                candidate['bookmaker'] = bet365_bookmaker
+                candidate['was_bet365_adjusted'] = True
+                # Recalcular value con cuota de Bet365
+                prob = candidate.get('prob', 0)
+                if prob > 0:
+                    candidate['value'] = bet365_odd * prob
+                    candidate['implied_probability'] = 1.0 / bet365_odd if bet365_odd > 0 else 0
+            
+            # PASO 2: Luego intentar ajustar línea si es necesario
             adjusted = adjust_line_if_needed(candidate, event_bookmakers)
             adjusted_candidates.append(adjusted)
         

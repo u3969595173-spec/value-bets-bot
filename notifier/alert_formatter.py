@@ -36,30 +36,6 @@ def format_free_alert(candidate: Dict) -> str:
     selection = candidate['selection']
     odd = candidate['odds']
     bookmaker = candidate.get('bookmaker', 'N/A')
-    # Buscar cuota de Bet365 para la misma línea, mercado y selección
-    event_bookmakers = candidate.get('event_bookmakers') or candidate.get('bookmakers')
-    bet365_odd = None
-    if event_bookmakers:
-        for bm in event_bookmakers:
-            if bm.get('title','').lower() == 'bet365':
-                for m in bm.get('markets', []):
-                    if m.get('key') == candidate.get('market_key'):
-                        for out in m.get('outcomes', []):
-                            # Comparar selección y punto (línea) si aplica
-                            same_sel = out.get('name','').strip().lower() == candidate['selection'].strip().lower()
-                            same_point = True
-                            if 'point' in candidate and candidate['point'] is not None:
-                                same_point = abs(float(out.get('point',0))-float(candidate['point'])) < 1e-6
-                            if same_sel and same_point:
-                                bet365_odd = float(out.get('price'))
-                                break
-                    if bet365_odd is not None:
-                        break
-            if bet365_odd is not None:
-                break
-    if bet365_odd is not None:
-        odd = bet365_odd
-        bookmaker = 'Bet365'
     point = candidate.get('point')
 
     # Detectar tipo de mercado si no viene market_key
@@ -121,6 +97,15 @@ def format_free_alert(candidate: Dict) -> str:
 
     lines.append("")
     lines.append(f"🏠 **Casa de apuestas:** {bookmaker}")
+    
+    # Mostrar si se usó Bet365
+    if candidate.get('was_bet365_adjusted'):
+        original_odds_val = candidate.get('original_odds')
+        original_bm = candidate.get('original_bookmaker', 'N/A')
+        lines.append("")
+        lines.append(f"💎 **Cuota ajustada a Bet365:**")
+        lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
+        lines.append(f"   Bet365: @ {odd:.2f} ✅")
 
     # --- PICK EXPLICADO ---
     lines.append("")
@@ -231,29 +216,6 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     bookmaker = candidate.get('bookmaker', 'N/A')
     original_bookmaker = bookmaker
     
-    # Buscar cuota de Bet365 para la misma línea, mercado y selección
-    event_bookmakers = candidate.get('event_bookmakers') or candidate.get('bookmakers')
-    bet365_odd = None
-    if event_bookmakers:
-        for bm in event_bookmakers:
-            bm_name = bm.get('title','').lower() or bm.get('key','').lower()
-            if 'bet365' in bm_name:
-                for m in bm.get('markets', []):
-                    if m.get('key') == candidate.get('market_key'):
-                        for out in m.get('outcomes', []):
-                            # Comparar selección y punto (línea) si aplica
-                            same_sel = out.get('name','').strip().lower() == candidate['selection'].strip().lower()
-                            same_point = True
-                            if 'point' in candidate and candidate['point'] is not None:
-                                same_point = abs(float(out.get('point',0))-float(candidate['point'])) < 0.1
-                            if same_sel and same_point:
-                                bet365_odd = float(out.get('price'))
-                                break
-                    if bet365_odd is not None:
-                        break
-            if bet365_odd is not None:
-                break
-    
     point = candidate.get('point')
 
     # Detectar tipo de mercado si no viene market_key
@@ -315,7 +277,18 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     lines.append("")
     lines.append(f"🏠 **Casa recomendada:** {original_bookmaker}")
     
-    # Mostrar si la línea fue ajustada
+    # Mostrar si se usó Bet365
+    if candidate.get('was_bet365_adjusted'):
+        original_odds_val = candidate.get('original_odds')
+        original_bm = candidate.get('original_bookmaker', 'N/A')
+        lines.append("")
+        lines.append(f"💎 **Cuota ajustada a Bet365:**")
+        lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
+        lines.append(f"   Bet365: @ {odd:.2f} ✅")
+        if odd < original_odds_val:
+            lines.append(f"   ℹ️ Cuota más conservadora y confiable")
+    
+    # Mostrar si la línea fue ajustada (handicap/total)
     if candidate.get('was_adjusted'):
         original_odds_val = candidate.get('original_odds')
         original_point_val = candidate.get('original_point')
@@ -328,16 +301,6 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
             lines.append(f"   Original: @ {original_odds_val:.2f}")
             lines.append(f"   Ajustada: @ {odd:.2f}")
         lines.append(f"   💡 Línea más conservadora para mejor control")
-    
-    # Mostrar cuota de Bet365 si existe y es diferente
-    if bet365_odd is not None and abs(bet365_odd - odd) > 0.01:
-        lines.append("")
-        lines.append(f"💎 **En Bet365:** {bet365_odd:.2f}")
-        if bet365_odd < odd:
-            diff = ((odd / bet365_odd) - 1) * 100
-            lines.append(f"   ℹ️ {original_bookmaker} tiene {diff:.1f}% mejor cuota")
-        else:
-            lines.append(f"   ℹ️ Disponible también en Bet365")
 
     # --- PICK EXPLICADO ---
     lines.append("")
