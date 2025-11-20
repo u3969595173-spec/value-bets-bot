@@ -104,10 +104,11 @@ ALERT_SEND_HOUR_END = 22     # 10 PM España
 # Deportes a monitorear (OPTIMIZADO: 17 deportes con revisión cada 90 min)
 SPORTS = os.getenv("SPORTS", "basketball_nba,basketball_euroleague,basketball_spain_acb,basketball_france_lnb,basketball_germany_bbl,basketball_italy_lega_a,soccer_epl,soccer_spain_la_liga,soccer_germany_bundesliga,soccer_italy_serie_a,soccer_france_ligue_one,soccer_uefa_champs_league,soccer_uefa_europa_league,soccer_efl_champ,soccer_spain_la_liga2,icehockey_nhl,americanfootball_nfl").split(",")
 
-# ConfiguraciÃƒÂ³n de tiempo (OPTIMIZADO para durar API credits)
-AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de AmÃƒÂ©rica
-DAILY_START_HOUR = 6  # 6 AM
-UPDATE_INTERVAL_MINUTES = 90  # 90 minutos = 16 requests/día × 17 deportes × 3 mercados = 816 créditos/día (~24 días)
+# Configuración de tiempo (OPTIMIZADO para durar API credits)
+EUROPE_TZ = ZoneInfo("Europe/Madrid")  # Hora de España
+AMERICA_TZ = ZoneInfo("America/New_York")  # Fallback
+DAILY_START_HOUR = 6  # 6 AM España
+UPDATE_INTERVAL_MINUTES = 90  # 90 minutos = 16 requests/día × 12 deportes × 3 mercados = 576 créditos/día (~35 días)
 ALERT_WINDOW_HOURS = 4  # Alertar cuando falten menos de 4 horas (más value cerca del inicio)
 
 # Configuracin adicional
@@ -1397,9 +1398,9 @@ Tu saldo sigue disponible.
 
     def is_daily_start_time(self) -> bool:
         """
-        Verifica si es hora de inicio diario (6 AM Amrica)
+        Verifica si es hora de inicio diario (6 AM España)
         """
-        now = datetime.now(AMERICA_TZ)
+        now = datetime.now(EUROPE_TZ)
         return now.hour == DAILY_START_HOUR and now.minute < 5
 
     def get_events_starting_soon(self, max_hours: float = ALERT_WINDOW_HOURS) -> List[Dict]:
@@ -1423,7 +1424,7 @@ Tu saldo sigue disponible.
         """
         Calcula la prÃƒÂ³xima actualizaciÃƒÂ³n (cada 10 minutos)
         """
-        now = datetime.now(AMERICA_TZ)
+        now = datetime.now(EUROPE_TZ)
         next_update = now + timedelta(minutes=UPDATE_INTERVAL_MINUTES)
         return next_update
 
@@ -1431,7 +1432,7 @@ Tu saldo sigue disponible.
         """
         Calcula el prximo inicio diario (6 AM Amrica)
         """
-        now = datetime.now(AMERICA_TZ)
+        now = datetime.now(EUROPE_TZ)
         next_start = now.replace(hour=DAILY_START_HOUR, minute=0, second=0, microsecond=0)
         
         if now >= next_start:
@@ -1443,7 +1444,7 @@ Tu saldo sigue disponible.
         """
         Calcula la prÃƒÂ³xima verificaciÃƒÂ³n de resultados (2 AM AmÃƒÂ©rica)
         """
-        now = datetime.now(AMERICA_TZ)
+        now = datetime.now(EUROPE_TZ)
         next_verification = now.replace(hour=2, minute=0, second=0, microsecond=0)
         
         if now >= next_verification:
@@ -2033,7 +2034,7 @@ Tu saldo sigue disponible.
         """
         Inicializacin diaria a las 6 AM
         """
-        logger.info("DAILY INITIALIZATION - 6 AM America")
+        logger.info("⏰ DAILY INITIALIZATION - 6 AM España")
         
         # Reset del estado de alertas diarias
         self.alerts_state.reset_if_needed()
@@ -2044,7 +2045,7 @@ Tu saldo sigue disponible.
             user._check_reset()  # Reset contadores diarios
         
         # Verificar si es lunes para reset semanal
-        now = datetime.now(AMERICA_TZ)
+        now = datetime.now(EUROPE_TZ)
         if now.weekday() == 0:  # 0 = Lunes
             await self.weekly_reset()
         
@@ -2392,7 +2393,7 @@ Tu saldo sigue disponible.
         Loop principal de monitoreo continuo
         """
         logger.info("Starting continuous monitoring")
-        logger.info(f" Daily start: {DAILY_START_HOUR}:00 AM America")
+        logger.info(f" Daily start: {DAILY_START_HOUR}:00 AM España")
         logger.info(f" Updates: every {UPDATE_INTERVAL_MINUTES} minutes")
         logger.info(f" Alert window: {ALERT_WINDOW_HOURS} hours before event")
         
@@ -2430,7 +2431,7 @@ Tu saldo sigue disponible.
         
         while True:
             try:
-                now = datetime.now(AMERICA_TZ)
+                now = datetime.now(EUROPE_TZ)
                 
                 # Verificar si es hora de inicializacin diaria
                 if self.is_daily_start_time():
@@ -2456,7 +2457,7 @@ Tu saldo sigue disponible.
                 # Asegurar que dormimos al menos 1 minuto
                 sleep_seconds = max(60, sleep_seconds)
                 
-                logger.info(f" Sleeping until next update: {next_update.strftime('%H:%M')} America ({sleep_seconds/60:.1f} min)")
+                logger.info(f" Sleeping until next update: {next_update.strftime('%H:%M')} España ({sleep_seconds/60:.1f} min)")
                 
                 await asyncio.sleep(sleep_seconds)
                 
