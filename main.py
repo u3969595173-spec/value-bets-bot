@@ -2209,10 +2209,10 @@ Tu saldo sigue disponible.
             
             adjusted_candidates.append(adjusted)
         
-        # Si NO hay picks con filtro estricto, hacer SEGUNDA PASADA con filtro relajado (2.5)
+        # Si NO hay picks con filtro estricto, hacer SEGUNDA PASADA con filtro relajado (2.6)
         if not adjusted_candidates:
             logger.warning(f"⚠️ No hay picks con filtro estricto (≤2.1)")
-            logger.info(f"🔄 SEGUNDA PASADA con filtro relajado (≤2.5)...")
+            logger.info(f"🔄 SEGUNDA PASADA con filtro relajado (≤2.6)...")
             
             for candidate in value_candidates:
                 event_id = candidate.get('id', '')
@@ -2260,7 +2260,7 @@ Tu saldo sigue disponible.
             if adjusted_candidates:
                 logger.info(f"✅ {len(adjusted_candidates)} picks encontrados con filtro relajado")
             else:
-                logger.info(f"❌ No hay picks ni con filtro relajado (≤2.5)")
+                logger.info(f"❌ No hay picks ni con filtro relajado (≤2.6)")
         else:
             logger.info(f"✅ {len(adjusted_candidates)} picks con filtro estricto (≤2.1)")
         

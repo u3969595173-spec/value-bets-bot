@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 MAX_ODD_THRESHOLD_STRICT = 2.1  # Threshold estricto (primera pasada)
-MAX_ODD_THRESHOLD_RELAXED = 2.5  # Threshold relajado (fallback)
+MAX_ODD_THRESHOLD_RELAXED = 2.6  # Threshold relajado (fallback)
 TARGET_ODD = 2.0  # Cuota objetivo para líneas ajustadas
 
 
