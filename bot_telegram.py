@@ -893,6 +893,45 @@ async def notify_admin_withdrawal(context: ContextTypes.DEFAULT_TYPE, user_id: s
         logger.error(f"Error notificando retiro al admin: {e}")
 
 
+async def cmd_mi_deuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando /mi_deuda - Muestra estado de pagos del usuario"""
+    from commands.user_commands import handle_mi_deuda_command
+    
+    user_id = str(update.effective_user.id)
+    
+    try:
+        response = await handle_mi_deuda_command(user_id)
+        await update.message.reply_text(response, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Error en /mi_deuda: {e}")
+        await update.message.reply_text("❌ Error al obtener estado de pagos.")
+
+
+async def cmd_marcar_pago(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando admin /marcar_pago <user_id> <tipo>"""
+    from commands.admin_commands import admin_marcar_pago
+    
+    admin_id = str(update.effective_user.id)
+    
+    # Verificar argumentos
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Uso: /marcar_pago <user_id> <tipo>\n"
+            "Tipos: base, plus, ambos"
+        )
+        return
+    
+    user_id = context.args[0]
+    payment_type = context.args[1]
+    
+    try:
+        response = await admin_marcar_pago(admin_id, user_id, payment_type)
+        await update.message.reply_text(response, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Error en /marcar_pago: {e}")
+        await update.message.reply_text(f"❌ Error al marcar pago: {e}")
+
+
 # ============================================================================
 # MAIN
 # ============================================================================
@@ -909,13 +948,15 @@ def main():
     application.add_handler(CommandHandler("premium", cmd_premium))
     application.add_handler(CommandHandler("estadisticas", cmd_estadisticas))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("mi_deuda", cmd_mi_deuda))
     application.add_handler(CommandHandler("aprobar_retiro", cmd_aprobar_retiro))
     application.add_handler(CommandHandler("reporte_referidos", cmd_reporte_referidos))
     application.add_handler(CommandHandler("detectar_fraude", cmd_detectar_fraude))
+    application.add_handler(CommandHandler("marcar_pago", cmd_marcar_pago))
     application.add_handler(CallbackQueryHandler(callback_query_handler))
     logger.info("Bot de comandos iniciado correctamente!")
-    logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats")
-    logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude")
+    logger.info("Comandos disponibles: /start, /referidos, /canjear, /retirar, /premium, /stats, /mi_deuda")
+    logger.info("Comandos admin: /aprobar_retiro, /reporte_referidos, /detectar_fraude, /marcar_pago")
     # schedule_summaries()  # Temporalmente desactivado - causa conflicto con event loop
     
     # Simplemente iniciar el bot sin configuraciones especiales
