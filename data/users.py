@@ -443,6 +443,35 @@ class User:
         
         return stake
     
+    def record_bet(self, bet_data: Dict):
+        """
+        Registra una apuesta pendiente en el historial del usuario.
+        
+        Args:
+            bet_data: {
+                'event_id': str,
+                'selection': str,
+                'odds': float,
+                'stake': float,
+                'market': str,
+                'point': float,
+                'sport': str,
+                'commence_time': str,
+                'home_team': str,
+                'away_team': str,
+                'status': str  # 'pending', 'won', 'lost'
+            }
+        """
+        # Agregar timestamp
+        bet_data['recorded_at'] = datetime.now(timezone.utc).isoformat()
+        
+        # Agregar a historial
+        self.bet_history.append(bet_data)
+        
+        # Mantener solo últimas 100 apuestas en history
+        if len(self.bet_history) > 100:
+            self.bet_history = self.bet_history[-100:]
+    
     def update_bankroll(self, bet_result: Dict):
         """
         Actualiza el bankroll tras el resultado de una apuesta.

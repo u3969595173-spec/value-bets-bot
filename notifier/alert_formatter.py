@@ -12,6 +12,18 @@ from utils.sport_translator import translate_sport
 from utils.lineup_analyzer import get_lineup_section
 
 
+def escape_markdown(text: str) -> str:
+    """
+    Escapa solo los caracteres que pueden romper Markdown básico.
+    Para Telegram Markdown básico: escapar * _ ` [
+    """
+    if not text:
+        return text
+    # Escapar caracteres que rompen formato
+    text = str(text).replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[')
+    return text
+
+
 def format_free_alert(candidate: Dict) -> str:
     """
     Mensaje resumido para usuarios gratuitos.
@@ -26,16 +38,17 @@ def format_free_alert(candidate: Dict) -> str:
     
     # Header simple
     sport_es = translate_sport(candidate.get('sport_key', ''), candidate.get('sport'))
+    event_name = escape_markdown(candidate.get('event', 'N/A'))
     lines.append(f"🎯 **{sport_es.upper()}**")
-    lines.append(f"⚽ **{candidate.get('event', 'N/A')}**")
+    lines.append(f"⚽ **{event_name}**")
     lines.append("")
     
     # Información detallada del mercado con formato claro
-    market = candidate.get('market', 'N/A')
+    market = escape_markdown(candidate.get('market', 'N/A'))
     market_key = candidate.get('market_key', '')
-    selection = candidate['selection']
+    selection = escape_markdown(candidate['selection'])
     odd = candidate['odds']
-    bookmaker = candidate.get('bookmaker', 'N/A')
+    bookmaker = escape_markdown(candidate.get('bookmaker', 'N/A'))
     point = candidate.get('point')
 
     # Detectar tipo de mercado si no viene market_key
@@ -49,7 +62,7 @@ def format_free_alert(candidate: Dict) -> str:
 
     # Formatear según el tipo de mercado DE FORMA CLARA
     lines.append("📋 **APUESTA:**")
-    lines.append(f"   🏆 **Partido:** {candidate.get('event', 'N/A')}")
+    lines.append(f"   🏆 **Partido:** {event_name}")
     lines.append("")
 
     if market_key == 'h2h':
@@ -101,7 +114,7 @@ def format_free_alert(candidate: Dict) -> str:
     # Mostrar si se usó casa estándar
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
-        original_bm = candidate.get('original_bookmaker', 'N/A')
+        original_bm = escape_markdown(candidate.get('original_bookmaker', 'N/A'))
         lines.append("")
         lines.append(f"💎 **Cuota ajustada a casa estándar:**")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
@@ -209,12 +222,13 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     
     # Información detallada del evento
     sport_es = translate_sport(candidate.get('sport_key', ''), candidate.get('sport'))
-    market = candidate.get('market', 'N/A')
+    market = escape_markdown(candidate.get('market', 'N/A'))
     market_key = candidate.get('market_key', '')
-    selection = candidate['selection']
+    selection = escape_markdown(candidate['selection'])
     odd = candidate['odds']
-    bookmaker = candidate.get('bookmaker', 'N/A')
+    bookmaker = escape_markdown(candidate.get('bookmaker', 'N/A'))
     original_bookmaker = bookmaker
+    event_name = escape_markdown(candidate.get('event', 'N/A'))
     
     point = candidate.get('point')
 
@@ -228,7 +242,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
             market_key = 'h2h'
 
     lines.append(f"🎯 **{sport_es.upper()}**")
-    lines.append(f"⚽ **{candidate.get('event', 'N/A')}**")
+    lines.append(f"⚽ **{event_name}**")
     lines.append("")
     lines.append("📋 **APUESTA RECOMENDADA:**")
 
@@ -280,7 +294,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     # Mostrar si se usó William Hill (casa estándar)
     if candidate.get('was_bet365_adjusted'):
         original_odds_val = candidate.get('original_odds')
-        original_bm = candidate.get('original_bookmaker', 'N/A')
+        original_bm = escape_markdown(candidate.get('original_bookmaker', 'N/A'))
         lines.append("")
         lines.append(f"💎 **Cuota ajustada a casa estándar:**")
         lines.append(f"   {original_bm}: @ {original_odds_val:.2f}")
