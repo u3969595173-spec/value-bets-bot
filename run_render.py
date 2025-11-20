@@ -76,30 +76,14 @@ def run_http_server():
     server.serve_forever()
 
 async def run_both_bots():
-    """Ejecuta ambos bots en paralelo con webhook"""
-    global telegram_app
-    import bot_telegram
+    """Ejecuta solo el bot de predicciones (comandos deshabilitado temporalmente)"""
     import main
     
-    print("[RUN_RENDER v5] ✅ Arrancando bot de COMANDOS (bot_telegram.py) con WEBHOOK...")
     print("[RUN_RENDER v5] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
+    print("[RUN_RENDER v5] ⚠️ Bot de comandos deshabilitado temporalmente")
     
-    # Crear una tarea para iniciar bot_telegram y obtener la app
-    async def start_telegram_and_save_app():
-        await bot_telegram.main_async()
-    
-    # Esperar un poco para que bot_telegram inicialice la app
-    telegram_task = asyncio.create_task(start_telegram_and_save_app())
-    await asyncio.sleep(2)  # Dar tiempo para que se inicialice
-    
-    # Obtener la app global de bot_telegram
-    telegram_app = bot_telegram.application
-    
-    # Ejecutar ambos bots en paralelo
-    await asyncio.gather(
-        telegram_task,  # Bot de comandos (webhook)
-        main.main()     # Bot de predicciones (async)
-    )
+    # Solo ejecutar el bot de predicciones
+    await main.main()
 
 if __name__ == "__main__":
     print("[RUN_RENDER v5] Iniciando bot completo: Comandos (WEBHOOK) + Pronósticos con HTTP server...")
