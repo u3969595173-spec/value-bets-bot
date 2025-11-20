@@ -10,8 +10,7 @@ import asyncio
 import logging
 import shutil
 import pytz
-import datetime
-from datetime import timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
@@ -1052,9 +1051,10 @@ def main():
     job_queue = application.job_queue
     
     # Reset semanal: cada lunes a las 06:00 (hora del servidor)
+    from datetime import time as dt_time
     job_queue.run_daily(
         weekly_reset_and_notify,
-        time=datetime.time(hour=6, minute=0),
+        time=dt_time(hour=6, minute=0),
         days=(0,),  # 0 = lunes
         name="weekly_reset"
     )
@@ -1063,7 +1063,7 @@ def main():
     # Top 3 semanal: cada lunes a las 12:00 (después del reset)
     job_queue.run_daily(
         send_weekly_referral_rewards,
-        time=datetime.time(hour=12, minute=0),
+        time=dt_time(hour=12, minute=0),
         days=(0,),  # 0 = lunes
         name="weekly_top3"
     )
