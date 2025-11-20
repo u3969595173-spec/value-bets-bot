@@ -1,6 +1,6 @@
 """
-run_render.py - Bot + HTTP server con webhook para Render - v6
-Actualizado: 2025-11-20 22:00
+run_render.py - Bot + HTTP server con webhook para Render - v7
+Actualizado: 2025-11-20 23:40 - Fix Markdown + record_bet + users table
 """
 import sys
 import os
