@@ -6,7 +6,7 @@ Maneja:
 - Límites de alertas diarias por nivel
 - Bankroll management para usuarios premium
 - Sistema de referidos con recompensas
-- Persistencia en JSON
+- Persistencia en JSON y Supabase
 """
 import json
 import os
@@ -16,6 +16,15 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional, List
 from zoneinfo import ZoneInfo
 from pathlib import Path
+
+# Supabase para persistencia
+try:
+    from supabase import create_client, Client
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    supabase: Optional[Client] = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+except ImportError:
+    supabase = None
 
 
 # Configuración de límites - SISTEMA PREMIUM EXCLUSIVO
@@ -638,24 +647,45 @@ class UsersManager:
         self.load()
     
     def load(self):
-        """Carga usuarios desde archivo JSON."""
-        if not self.storage_path.exists():
-            return
+        """Carga usuarios desde Supabase primero, JSON como fallback."""
+        loaded_from_supabase = False
         
-        try:
-            with open(self.storage_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            self.users = {
-                chat_id: User.from_dict(user_data)
-                for chat_id, user_data in data.items()
-            }
-        except Exception as e:
-            print(f"⚠️  Error cargando usuarios: {e}")
+        # 1. Intentar cargar desde Supabase
+        if supabase:
+            try:
+                response = supabase.table('users').select('*').execute()
+                if response.data:
+                    self.users = {}
+                    for user_data in response.data:
+                        # Convertir referred_users de JSON string a lista
+                        if 'referred_users' in user_data and isinstance(user_data['referred_users'], str):
+                            user_data['referred_users'] = json.loads(user_data['referred_users'])
+                        
+                        self.users[user_data['chat_id']] = User.from_dict(user_data)
+                    
+                    loaded_from_supabase = True
+                    print(f"✅ Cargados {len(self.users)} usuarios desde Supabase")
+            except Exception as e:
+                print(f"⚠️  Error cargando desde Supabase: {e}")
+        
+        # 2. Fallback a JSON si Supabase falló
+        if not loaded_from_supabase and self.storage_path.exists():
+            try:
+                with open(self.storage_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                self.users = {
+                    chat_id: User.from_dict(user_data)
+                    for chat_id, user_data in data.items()
+                }
+                print(f"✅ Cargados {len(self.users)} usuarios desde JSON (fallback)")
+            except Exception as e:
+                print(f"⚠️  Error cargando usuarios desde JSON: {e}")
     
     def save(self):
-        """Guarda usuarios a archivo JSON."""
+        """Guarda usuarios a archivo JSON y Supabase."""
         try:
+            # 1. Guardar en JSON (backup local)
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
             
             data = {
@@ -665,6 +695,20 @@ class UsersManager:
             
             with open(self.storage_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # 2. Guardar en Supabase (persistencia real)
+            if supabase:
+                for chat_id, user in self.users.items():
+                    user_data = user.to_dict()
+                    # Convertir lista referred_users a JSON para Supabase
+                    user_data['referred_users'] = json.dumps(user_data.get('referred_users', []))
+                    
+                    try:
+                        # Upsert (insert or update)
+                        supabase.table('users').upsert(user_data).execute()
+                    except Exception as e:
+                        print(f"⚠️  Error guardando usuario {chat_id} en Supabase: {e}")
+                        
         except Exception as e:
             print(f"⚠️  Error guardando usuarios: {e}")
     
