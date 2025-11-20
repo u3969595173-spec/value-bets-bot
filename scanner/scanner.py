@@ -37,10 +37,11 @@ from analyzer import generate_analysis
 # thresholds per sport key prefix (ELITE - ultra-profesional)
 THRESHOLDS = {
     'basketball': 1.15,  # NBA elite (antes 1.12)
-    'americanfootball': 1.15,
+    'americanfootball': 1.15,  # NFL
     'baseball': 1.16,  # MLB elite (antes 1.13)
     'soccer': 1.13,  # Fútbol elite (antes 1.10)
     'tennis': 1.12,  # Tenis elite (antes 1.09)
+    'icehockey': 1.14,  # NHL (juego dinámico similar a basketball)
 }
 
 
