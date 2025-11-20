@@ -1919,9 +1919,11 @@ Tu saldo sigue disponible.
             # PASO 1: Buscar cuota de Bet365 PRIMERO
             bet365_odd = None
             bet365_bookmaker = None
+            logger.info(f"🔍 DEBUG: Buscando Bet365 para {candidate.get('selection')} @ {candidate.get('odds')}, bookmakers disponibles: {len(event_bookmakers)}")
             if event_bookmakers:
                 for bm in event_bookmakers:
                     bm_name = bm.get('title', '').lower() or bm.get('key', '').lower()
+                    logger.info(f"🔍 DEBUG: Revisando bookmaker: {bm_name}")
                     if 'bet365' in bm_name:
                         for m in bm.get('markets', []):
                             if m.get('key') == candidate.get('market_key'):
