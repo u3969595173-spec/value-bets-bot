@@ -101,14 +101,14 @@ SPAIN_TZ = ZoneInfo("Europe/Madrid")
 ALERT_SEND_HOUR_START = 14  # 2 PM España
 ALERT_SEND_HOUR_END = 22     # 10 PM España
 
-# Deportes a monitorear (OPTIMIZADO: 4 deportes para 25-30 días con 20k créditos)
-SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp").split(",")
+# Deportes a monitorear (OPTIMIZADO: 12 deportes con revisión cada 90 min)
+SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,soccer_germany_bundesliga,soccer_italy_serie_a,soccer_france_ligue_one,soccer_uefa_champs_league,soccer_uefa_europa_league,soccer_efl_champ,soccer_spain_la_liga2,icehockey_nhl,americanfootball_nfl").split(",")
 
 # ConfiguraciÃƒÂ³n de tiempo (OPTIMIZADO para durar API credits)
 AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de AmÃƒÂ©rica
 DAILY_START_HOUR = 6  # 6 AM
-UPDATE_INTERVAL_MINUTES = 30  # 30 minutos = 48 requests/día × 4 deportes = 192 créditos/día
-ALERT_WINDOW_HOURS = 8  # Alertar cuando falten menos de 8 horas (ampliado para más picks)
+UPDATE_INTERVAL_MINUTES = 90  # 90 minutos = 16 requests/día × 12 deportes = 192 créditos/día
+ALERT_WINDOW_HOURS = 4  # Alertar cuando falten menos de 4 horas (más value cerca del inicio)
 
 # Configuracin adicional
 SAMPLE_PATH = os.getenv("SAMPLE_ODDS_PATH", "data/sample_odds.json")
