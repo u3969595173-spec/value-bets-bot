@@ -78,6 +78,7 @@ class User:
         # Campos de comisiones (NUEVO SISTEMA)
         referrals_paid: int = 0,
         saldo_comision: float = 0.0,
+        accumulated_balance: float = None,  # Alias de saldo_comision (para compatibilidad)
         suscripcion_fin: str = None,
         total_commission_earned: float = 0.0,
         free_weeks_earned: int = 0,
