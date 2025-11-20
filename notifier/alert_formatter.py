@@ -360,7 +360,15 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     lines.append("")
 
     if candidate.get('commence_time'):
-        lines.append(f"⏰ **INICIO:** {candidate['commence_time']}")
+        from datetime import datetime, timezone
+        commence_time = candidate['commence_time']
+        # Si es datetime, formatearlo bien
+        if isinstance(commence_time, datetime):
+            commence_str = commence_time.strftime('%Y-%m-%d %H:%M UTC')
+        else:
+            # Si es string, usarlo directamente
+            commence_str = str(commence_time)
+        lines.append(f"⏰ **INICIO:** {commence_str}")
 
     lines.append("")
 
