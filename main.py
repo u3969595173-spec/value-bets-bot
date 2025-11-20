@@ -1296,31 +1296,33 @@ class ValueBotMonitor:
         # Iniciar el bot de Telegram (inicializar y empezar)
         logger.info("Iniciando bot de Telegram para comandos...")
         
-        # Espera inicial en producción para evitar conflictos con instancia anterior
+        # Usar webhooks en Render para evitar conflictos de polling
         if os.getenv('RENDER'):
-            initial_wait = 30
-            logger.info(f"🔄 Entorno Render detectado. Esperando {initial_wait}s para evitar conflictos con instancia anterior...")
-            await asyncio.sleep(initial_wait)
-        
-        # Retry logic para evitar conflictos temporales durante deploy
-        max_retries = 3
-        retry_delay = 10  # Aumentado de 5 a 10 segundos
-        
-        for attempt in range(max_retries):
+            render_url = os.getenv('RENDER_EXTERNAL_URL', 'https://value-bets-bot.onrender.com')
+            webhook_url = f"{render_url}/telegram-webhook"
+            
+            try:
+                await self.telegram_app.initialize()
+                await self.telegram_app.start()
+                
+                # Configurar webhook
+                await self.telegram_app.bot.delete_webhook(drop_pending_updates=True)
+                await self.telegram_app.bot.set_webhook(webhook_url)
+                logger.info(f"✅ Bot de Telegram activo con webhook: {webhook_url}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error configurando webhook: {e}")
+                raise
+        else:
+            # En desarrollo local usar polling
             try:
                 await self.telegram_app.initialize()
                 await self.telegram_app.start()
                 await self.telegram_app.updater.start_polling(drop_pending_updates=True)
-                logger.info("Bot de Telegram activo")
-                break
+                logger.info("✅ Bot de Telegram activo con polling (desarrollo)")
             except Exception as e:
-                if "Conflict" in str(e) and attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)  # 10s, 20s, 40s
-                    logger.warning(f"⚠️ Conflicto detectado (intento {attempt + 1}/{max_retries}), esperando {wait_time}s...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    logger.error(f"❌ No se pudo iniciar el bot después de {max_retries} intentos: {e}")
-                    raise
+                logger.error(f"❌ Error iniciando polling: {e}")
+                raise
         
         while True:
             try:
@@ -1385,7 +1387,40 @@ async def main():
     """
     Funcin principal
     """
+    global monitoring_system
     monitor = ValueBotMonitor()
+    monitoring_system = monitor  # Guardar referencia global para webhooks
+    
+    # Si estamos en Render, iniciar servidor HTTP en paralelo
+    if os.getenv('RENDER'):
+        from aiohttp import web
+        
+        async def health_check(request):
+            return web.Response(text='Bot is running!')
+        
+        async def telegram_webhook(request):
+            try:
+                update_data = await request.json()
+                from telegram import Update
+                update = Update.de_json(update_data, monitor.telegram_app.bot)
+                await monitor.telegram_app.process_update(update)
+                return web.Response(status=200)
+            except Exception as e:
+                logger.error(f"Error procesando webhook: {e}")
+                return web.Response(status=500)
+        
+        # Crear app de aiohttp
+        app = web.Application()
+        app.router.add_get('/', health_check)
+        app.router.add_post('/telegram-webhook', telegram_webhook)
+        
+        # Iniciar servidor HTTP
+        port = int(os.environ.get('PORT', 10000))
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        logger.info(f"🌐 Servidor HTTP iniciado en puerto {port}")
     
     # Verificar argumentos de lnea de comandos
     if len(sys.argv) > 1 and sys.argv[1] == '--test':
@@ -1394,6 +1429,10 @@ async def main():
     else:
         # Modo de monitoreo continuo
         await monitor.run_continuous_monitoring()
+
+
+# Variable global para webhooks
+monitoring_system = None
 
 
 if __name__ == "__main__":

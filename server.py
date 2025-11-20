@@ -1,35 +1,66 @@
 """
-Servidor web simple para mantener el bot activo en Render
+Servidor web para webhooks de Telegram y health checks en Render
 """
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
 import os
 import sys
 import asyncio
+import logging
+from aiohttp import web
 
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b'Bot is running!')
+# Importar el bot para acceder a telegram_app
+import main as bot_main
+
+logger = logging.getLogger(__name__)
+
+async def health_check(request):
+    """Health check endpoint para Render"""
+    return web.Response(text='Bot is running!')
+
+async def telegram_webhook(request):
+    """Endpoint para recibir updates de Telegram via webhook"""
+    try:
+        update_data = await request.json()
+        
+        # Obtener la instancia del bot desde main
+        if hasattr(bot_main, 'monitoring_system') and bot_main.monitoring_system:
+            telegram_app = bot_main.monitoring_system.telegram_app
+            
+            # Procesar el update
+            from telegram import Update
+            update = Update.de_json(update_data, telegram_app.bot)
+            await telegram_app.process_update(update)
+            
+            return web.Response(status=200)
+        else:
+            logger.error("Bot no inicializado aún")
+            return web.Response(status=503, text="Bot not ready")
+            
+    except Exception as e:
+        logger.error(f"Error procesando webhook: {e}")
+        return web.Response(status=500, text=str(e))
+
+async def start_server():
+    """Inicia el servidor aiohttp"""
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_post('/telegram-webhook', telegram_webhook)
     
-    def log_message(self, format, *args):
-        # Silenciar logs del servidor HTTP
-        pass
-
-def start_server():
     port = int(os.environ.get('PORT', 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"Servidor HTTP iniciado en puerto {port}")
-    server.serve_forever()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    
+    logger.info(f"Servidor HTTP iniciado en puerto {port}")
+    logger.info(f"Webhook endpoint: /telegram-webhook")
+    
+    # Mantener el servidor corriendo
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == '__main__':
-    # Iniciar servidor HTTP en thread separado
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
+    logging.basicConfig(level=logging.INFO)
     
-    # Importar y ejecutar el bot principal
+    # Iniciar servidor y bot juntos
     print("Iniciando bot principal...")
-    from main import main
-    asyncio.run(main())
+    asyncio.run(bot_main.main())
