@@ -284,7 +284,7 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
             lines.append(f"   💰 **Cuota:** {odd:.2f}")
     else:
         # Otro mercado
-        lines.append(f"   📊 **Mercado:** {candidate.get('market', 'N/A')}")
+        lines.append(f"   📊 **Mercado:** {market}")
         lines.append(f"   ✅ **Selección:** {selection}")
         lines.append(f"   💰 **Cuota:** {odd:.2f}")
 
