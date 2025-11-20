@@ -320,29 +320,29 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Formatear mensaje
         message = (
-            "📊 **PERFORMANCE DEL BOT** (Últimos 30 días)\n"
+            "📊 PERFORMANCE DEL BOT (Últimos 30 días)\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📈 *RENDIMIENTO GLOBAL:*\n"
+            f"📈 RENDIMIENTO GLOBAL:\n"
             f"  Total pronósticos: {stats['total_predictions']}\n"
             f"  ✅ Aciertos: {stats['won']}\n"
             f"  ❌ Fallos: {stats['lost']}\n"
             f"  ⏳ Pendientes: {stats['pending']}\n\n"
-            f"🎯 *EFECTIVIDAD:*\n"
-            f"  Win Rate: {stats['win_rate']}%\n"
+            f"🎯 EFECTIVIDAD:\n"
+            f"  Win Rate: {stats['win_rate']:.1f}%\n"
             f"  ROI: {stats['roi']:+.1f}%\n\n"
-            f"💰 *FINANCIERO:*\n"
+            f"💰 FINANCIERO:\n"
             f"  Stake total: ${stats['total_stake']:.2f}\n"
             f"  Ganancia/Pérdida: ${stats['total_profit']:+.2f}\n\n"
-            f"📊 *ANÁLISIS:*\n"
+            f"📊 ANÁLISIS:\n"
             f"  Cuota promedio: {stats['avg_odd']:.2f}\n"
             f"  Mejor deporte: {stats['best_sport']}\n\n"
         )
         if stats['win_rate'] >= 55:
-            message += "✅ *Rendimiento EXCELENTE* - Por encima del umbral de rentabilidad\n"
+            message += "✅ Rendimiento EXCELENTE - Por encima del umbral de rentabilidad\n"
         elif stats['win_rate'] >= 50:
-            message += "📊 *Rendimiento BUENO* - En zona de rentabilidad\n"
+            message += "📊 Rendimiento BUENO - En zona de rentabilidad\n"
         else:
-            message += "⚠️ *Rendimiento en desarrollo* - Se optimiza continuamente\n"
+            message += "⚠️ Rendimiento en desarrollo - Se optimiza continuamente\n"
         message += "\n💡 Nota: Los resultados se verifican automáticamente tras finalizar cada evento."
         await update.message.reply_text(message)
     except Exception as e:
