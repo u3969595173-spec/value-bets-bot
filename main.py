@@ -1868,6 +1868,8 @@ Tu saldo sigue disponible.
                 market_key = c.get('market_key', '')
                 point = c.get('point', 0)
                 odds = c.get('odds', 0)
+                event_id = c.get('id', '')
+                team_name = c.get('selection', '')
                 
                 # Detectar spread arriesgado (favorito con ventaja grande)
                 is_risky_spread = False
@@ -1884,24 +1886,53 @@ Tu saldo sigue disponible.
                 
                 # Si es spread arriesgado, buscar alternativa ML del mismo partido
                 if is_risky_spread:
-                    # Buscar ML del mismo equipo en el mismo evento
+                    # Buscar ML en TODOS los bookmakers del evento original (no solo en candidatos)
                     ml_alternative = None
-                    for alt in quality_candidates:
-                        same_event = alt.get('id') == c.get('id')
-                        same_team = alt.get('selection') == c.get('selection')
-                        is_ml = alt.get('market_key') == 'h2h'
-                        ml_odds = alt.get('odds', 0)
-                        
-                        if same_event and same_team and is_ml and 1.8 <= ml_odds <= 2.4:
-                            ml_alternative = alt
+                    
+                    # Encontrar el evento original en la lista de events
+                    original_event = None
+                    for event in events:
+                        if event.get('id') == event_id:
+                            original_event = event
                             break
                     
+                    if original_event:
+                        # Buscar ML (h2h) en todos los bookmakers del evento
+                        best_ml_odds = None
+                        best_ml_bookmaker = None
+                        
+                        for bookmaker in original_event.get('bookmakers', []):
+                            for market in bookmaker.get('markets', []):
+                                if market.get('key') == 'h2h':
+                                    for outcome in market.get('outcomes', []):
+                                        outcome_name = outcome.get('name', '')
+                                        outcome_odds = outcome.get('price', 0)
+                                        
+                                        # Mismo equipo y odds en rango seguro (1.8-2.4)
+                                        if outcome_name.strip().lower() == team_name.strip().lower():
+                                            if 1.8 <= outcome_odds <= 2.4:
+                                                if best_ml_odds is None or outcome_odds > best_ml_odds:
+                                                    best_ml_odds = outcome_odds
+                                                    best_ml_bookmaker = bookmaker.get('title', bookmaker.get('key'))
+                        
+                        # Si encontramos ML válida, crear candidato alternativo
+                        if best_ml_odds:
+                            ml_alternative = c.copy()
+                            ml_alternative['market_key'] = 'h2h'
+                            ml_alternative['point'] = None
+                            ml_alternative['odds'] = best_ml_odds
+                            ml_alternative['bookmaker'] = best_ml_bookmaker
+                            ml_alternative['was_converted'] = True
+                            ml_alternative['original_market'] = 'spreads'
+                            ml_alternative['original_point'] = point
+                            ml_alternative['original_odds'] = odds
+                    
                     if ml_alternative:
-                        logger.info(f"🔄 Spread arriesgado detectado: {c.get('selection')} {point} @ {odds}")
-                        logger.info(f"✅ Cambiando a ML: {ml_alternative.get('selection')} @ {ml_alternative.get('odds')} (más seguro)")
+                        logger.info(f"🔄 Spread arriesgado detectado: {team_name} {point} @ {odds}")
+                        logger.info(f"✅ Cambiando a ML: {team_name} @ {ml_alternative.get('odds')} en {ml_alternative.get('bookmaker')} (más seguro)")
                         conservative_candidates.append(ml_alternative)
                     else:
-                        logger.info(f"❌ Spread arriesgado sin alternativa ML: {c.get('selection')} {point} @ {odds}")
+                        logger.info(f"❌ Spread arriesgado sin alternativa ML válida (1.8-2.4): {team_name} {point} @ {odds}")
                         # No agregar, saltarlo
                 else:
                     # Pick normal, agregarlo
