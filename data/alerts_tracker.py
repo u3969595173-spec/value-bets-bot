@@ -134,14 +134,38 @@ class AlertsTracker:
         
         return pending
     
-    def get_user_stats(self, user_id: str) -> Dict:
+    def get_user_stats(self, user_id: str, period: str = 'all') -> Dict:
         """
         Obtiene estadísticas de alertas de un usuario
+        
+        Args:
+            user_id: ID del usuario
+            period: 'all', 'week', 'month', 'year'
         
         Returns:
             Dict con wins, losses, ROI, etc.
         """
+        from datetime import timedelta
+        
         user_alerts = [a for a in self.alerts.values() if a['user_id'] == user_id]
+        
+        # Filtrar por período
+        if period != 'all':
+            now = datetime.now(timezone.utc)
+            if period == 'week':
+                cutoff = now - timedelta(days=7)
+            elif period == 'month':
+                cutoff = now - timedelta(days=30)
+            elif period == 'year':
+                cutoff = now - timedelta(days=365)
+            else:
+                cutoff = None
+            
+            if cutoff:
+                user_alerts = [
+                    a for a in user_alerts 
+                    if datetime.fromisoformat(a['sent_at']) >= cutoff
+                ]
         
         if not user_alerts:
             return {

@@ -220,19 +220,47 @@ class ValueBotMonitor:
         
         # Stats
         if text == "📊 Mis Stats":
+            # Obtener stats por períodos
+            tracker = get_alerts_tracker()
+            stats_all = tracker.get_user_stats(chat_id, 'all')
+            stats_week = tracker.get_user_stats(chat_id, 'week')
+            stats_month = tracker.get_user_stats(chat_id, 'month')
+            stats_year = tracker.get_user_stats(chat_id, 'year')
+            
             msg = f"""
-📊 **Tus Estadísticas**
+📊 **TUS ESTADÍSTICAS REALES**
 
 👤 Usuario: @{user.username}
 💎 Estado: {'Premium ✅' if user.is_premium_active() else 'Free'}
 📅 Alertas hoy: {user.alerts_sent_today}/{MAX_ALERTS_PER_DAY if user.is_premium_active() else FREE_PICKS_PER_DAY}
-🗓️ Último reset: {user.last_reset_date}
 
-💰 **Sistema de Pagos:**
-• Pago base: 15€/semana
-• Ganancia referidos: {user.accumulated_balance:.2f}€
-• Total a pagar: {user.get_weekly_payment():.2f}€
-• Próximo reset: Lunes 06:00 AM
+━━━━━━━━━━━━━━━━━━━━━
+📈 **HISTÓRICO TOTAL**
+Picks: {stats_all['total']} | Win: {stats_all['win_rate']:.1f}% | ROI: {stats_all['roi']:+.1f}%
+✅{stats_all['won']} ❌{stats_all['lost']} 🔄{stats_all['push']} ⏳{stats_all['pending']}
+P/L: {stats_all['total_profit']:+.2f}€
+
+📅 **ESTA SEMANA (7 días)**
+Picks: {stats_week['total']} | Win: {stats_week['win_rate']:.1f}% | ROI: {stats_week['roi']:+.1f}%
+P/L: {stats_week['total_profit']:+.2f}€
+
+📆 **ESTE MES (30 días)**
+Picks: {stats_month['total']} | Win: {stats_month['win_rate']:.1f}% | ROI: {stats_month['roi']:+.1f}%
+P/L: {stats_month['total_profit']:+.2f}€
+
+🗓️ **ESTE AÑO (365 días)**
+Picks: {stats_year['total']} | Win: {stats_year['win_rate']:.1f}% | ROI: {stats_year['roi']:+.1f}%
+P/L: {stats_year['total_profit']:+.2f}€
+
+━━━━━━━━━━━━━━━━━━━━━
+📊 **BANKROLL DINÁMICO**
+Actual: {user.dynamic_bank:.2f}€ {'📈' if user.dynamic_bank >= 200 else '📉'}
+Inicial: 200.00€
+Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 100:+.1f}%)
+
+━━━━━━━━━━━━━━━━━━━━━
+💡 100% transparente • Verificado automáticamente
+🔄 Actualización cada 3h tras partidos
 """
             await update.message.reply_text(msg)
         
