@@ -735,11 +735,48 @@ Tu solicitud de retiro ha sido enviada al admin.
         target_user.accumulated_balance = 0.0
         target_user.payment_status = "paid"
         target_user.last_payment_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # PROCESAR COMISIÓN DE REFERIDO (10% de 15€ = 1.50€)
+        commission_paid = 0.0
+        if hasattr(target_user, 'referrer_id') and target_user.referrer_id:
+            referrer = self.users_manager.get_user(target_user.referrer_id)
+            if referrer:
+                commission = 15.0 * 0.10  # 10% de 15€
+                
+                # Sumar comisión al referente
+                if not hasattr(referrer, 'saldo_comision'):
+                    referrer.saldo_comision = 0.0
+                if not hasattr(referrer, 'total_commission_earned'):
+                    referrer.total_commission_earned = 0.0
+                
+                referrer.saldo_comision += commission
+                referrer.total_commission_earned += commission
+                commission_paid = commission
+                
+                logger.info(f"💰 Comisión de {commission:.2f}€ pagada a referente {referrer.chat_id}")
+                
+                # Notificar al referente
+                try:
+                    ref_username = target_user.username or f"ID:{target_user.chat_id}"
+                    msg = f"💰 **¡Nueva comisión!**\n\n"
+                    msg += f"Tu referido @{ref_username} pagó Premium\n"
+                    msg += f"Comisión: {commission:.2f}€ (10%)\n\n"
+                    msg += f"💵 Saldo actual: {referrer.saldo_comision:.2f}€\n"
+                    msg += f"📊 Total ganado: {referrer.total_commission_earned:.2f}€"
+                    await self.notifier.send_message(referrer.chat_id, msg)
+                except Exception as e:
+                    logger.error(f"Error notificando comisión a referente: {e}")
+        
         self.users_manager.save_users()
         
         username_display = target_user.username or f"ID:{target_user.chat_id}"
-        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{username_display}\n\nSaldo reiniciado a 0€\nEstado: PAGADO ✅")
-        logger.info(f"Admin marcó pago de {amount:.2f}€ para @{target_username}")
+        response = f"✅ Pago de {amount:.2f}€ marcado para @{username_display}\n\nSaldo reiniciado a 0€\nEstado: PAGADO ✅"
+        
+        if commission_paid > 0:
+            response += f"\n\n💰 Comisión de referido: {commission_paid:.2f}€ pagada al referente"
+        
+        await update.message.reply_text(response)
+        logger.info(f"Admin marcó pago de {amount:.2f}€ para @{username_display}")
     
     async def handle_reset_saldo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /reset_saldo @username"""
