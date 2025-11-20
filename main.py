@@ -393,32 +393,42 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
             user.update_free_weeks()
             free_weeks = getattr(user, 'free_weeks_available', 0)
             
+            # Saldo de comisiones
+            saldo = getattr(user, 'saldo_comision', 0.0)
+            total_earned = getattr(user, 'total_commission_earned', 0.0)
+            referrals_paid = getattr(user, 'referrals_paid', 0)
+            
             msg = f"""
-💰 **Sistema de Referidos**
+💰 <b>Sistema de Referidos</b>
 
-🔗 **Tu link personal:**
-`{referral_link}`
+🔗 <b>Tu link personal:</b>
+<code>{referral_link}</code>
 
-👥 **Tus referidos:**
+👥 <b>Tus referidos:</b>
 • Total: {total_refs}
+• Han pagado: {referrals_paid}
 • Premium activos: {premium_refs}
 
-🎁 **Semanas gratis:**
+🎁 <b>Semanas gratis:</b>
 • Disponibles: {free_weeks}
-• Progreso: {premium_refs % 5}/5 para próxima semana
-• (5 premium = 1 semana gratis)
+• Progreso: {referrals_paid % 3}/3 para próxima semana
+• (3 referidos pagos = 1 semana gratis)
 
-💵 **Ganancias:**
-• Esta semana: {weekly_earnings:.2f}€
-• Total acumulado: {user.accumulated_balance:.2f}€
+💵 <b>Ganancias:</b>
+• Saldo actual: {saldo:.2f}€
+• Total ganado: {total_earned:.2f}€
+• Por referido: 1.50€ (10% de 15€)
 
-📋 **Lista de referidos:**
+📋 <b>Lista de referidos:</b>
 {refs_list}
 
-💡 **Beneficios:**
-• 10% de comisión por cada premium
-• Participas en reparto del 20% de ganancias
-• Top 3 referrers ganan más cada semana
+💡 <b>Beneficios:</b>
+• 10% de comisión por cada premium (1.50€)
+• 1 semana gratis cada 3 referidos que paguen
+• Retiros desde 5€ (PayPal/Transfer)
+
+📤 <b>Compartir:</b>
+Copia el link arriba y envíalo por WhatsApp, redes, etc.
 """
             await update.message.reply_text(msg)
         
@@ -549,35 +559,60 @@ Recibirás una notificación cuando sea aprobada.
         
         # Botón Retirar Ganancias
         elif text == "💵 Retirar Ganancias":
-            balance = getattr(user, 'accumulated_balance', 0.0)
+            balance = getattr(user, 'saldo_comision', 0.0)
             pending = getattr(user, 'pending_withdrawal', False)
             
             if pending:
                 msg = """
-💵 **Retiro de Ganancias**
+💵 <b>Retiro de Ganancias</b>
 
 ⏳ Ya tienes una solicitud de retiro pendiente.
 
 El admin la revisará pronto. Te notificaremos cuando esté lista.
 """
-            elif balance <= 0:
-                msg = """
-💵 **Retiro de Ganancias**
+            elif balance < 5.0:
+                msg = f"""
+💵 <b>Retiro de Ganancias</b>
 
-❌ No tienes saldo disponible para retirar.
+❌ Saldo insuficiente: {balance:.2f}€
+<b>Mínimo para retirar: 5.00€</b>
 
-💡 **Cómo ganar:**
+💡 <b>Cómo ganar:</b>
 • Invita amigos con tu link de referidos
-• Ganas 10% por cada referido premium
-• Participa en el reparto semanal (top 3)
+• Ganas 10% por cada referido premium (1.50€)
+• Cada 3 referidos pagos = 1 semana gratis
 
 Ve a "💰 Mis Referidos" para ver tu link
 """
             else:
+                # Marcar retiro pendiente
+                user.pending_withdrawal = True
+                user.withdrawal_amount = balance
+                self.users_manager.save()
+                
+                # Notificar al admin
+                try:
+                    admin_msg = (
+                        f"💵 <b>SOLICITUD DE RETIRO</b>\n\n"
+                        f"Usuario: @{user.username} ({chat_id})\n"
+                        f"Monto: {balance:.2f}€\n"
+                        f"Referidos pagos: {getattr(user, 'referrals_paid', 0)}\n\n"
+                        f"Para aprobar: <code>/aprobar_retiro {chat_id}</code>"
+                    )
+                    await self.notifier.send_message(CHAT_ID, admin_msg)
+                except Exception as e:
+                    logger.error(f"Error notificando retiro al admin: {e}")
+                
                 msg = f"""
-💵 **Retiro de Ganancias**
+💵 <b>Solicitud Enviada</b> ✅
 
-💰 **Saldo disponible:** {balance:.2f}€
+💰 Monto: {balance:.2f}€
+⏳ El admin la procesará en 24-48h
+
+📧 Métodos disponibles:
+• PayPal
+• Transferencia bancaria
+• Revolut/Bizum
 
 ¿Deseas solicitar el retiro de TODO tu saldo?
 
@@ -743,11 +778,118 @@ Tu solicitud de retiro ha sido enviada al admin.
         
         target_user.nivel = "premium"
         target_user.is_permanent_premium = True
+        
+        # PROCESAR COMISIÓN SI TIENE REFERRER
+        commission_msg = ""
+        if hasattr(target_user, 'referrer_id') and target_user.referrer_id:
+            referrer = self.users_manager.get_user(target_user.referrer_id)
+            if referrer:
+                # Procesar pago de referido: 10% de 15€ = 1.50€
+                payment_result = referrer.add_paid_referral(15.0)
+                
+                commission_msg = f"\n\n💰 Comisión pagada a @{referrer.username}: {payment_result['commission']:.2f}€"
+                
+                # Notificar al referrer
+                try:
+                    msg = (
+                        f"💰 <b>¡COMISIÓN GANADA!</b>\n\n"
+                        f"Tu referido @{target_user.username} activó Premium\n"
+                        f"Comisión: {payment_result['commission']:.2f}€ (10%)\n"
+                        f"Nuevo saldo: {payment_result['new_balance']:.2f}€\n\n"
+                    )
+                    if payment_result['earned_free_week']:
+                        msg += (
+                            f"🎁 <b>¡BONUS!</b> Ganaste 1 semana premium gratis\n"
+                            f"Total referidos pagos: {payment_result['total_paid_referrals']}\n"
+                        )
+                    await self.notifier.send_message(referrer.chat_id, msg)
+                    logger.info(f"💰 Comisión de {payment_result['commission']:.2f}€ pagada a @{referrer.username}")
+                except Exception as e:
+                    logger.error(f"Error notificando comisión a referrer: {e}")
+        
         self.users_manager.save_users()
         
         username_display = target_user.username or f"ID:{target_user.chat_id}"
-        await update.message.reply_text(f"✅ @{username_display} (ID: {target_user.chat_id}) ahora es Premium")
+        await update.message.reply_text(f"✅ @{username_display} (ID: {target_user.chat_id}) ahora es Premium{commission_msg}")
         logger.info(f"Admin activó premium para @{username_display}")
+    
+    async def handle_pagar_referido(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /pagar_referido @username monto - Procesa pago manual y activa premium"""
+        chat_id = self._update_username(update)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) < 2:
+            await update.message.reply_text(
+                "Uso: /pagar_referido @username monto\n\n"
+                "Ejemplo: /pagar_referido @juan123 15\n\n"
+                "Esto activará premium y procesará comisión al referrer"
+            )
+            return
+        
+        target_input = context.args[0].replace("@", "")
+        
+        try:
+            monto = float(context.args[1])
+        except ValueError:
+            await update.message.reply_text("❌ Monto inválido. Usa número: /pagar_referido @user 15")
+            return
+        
+        # Buscar usuario
+        target_user = self.users_manager.get_user_by_username(target_input)
+        if not target_user:
+            for user in self.users_manager.users.values():
+                if user.username and user.username.lower() == target_input.lower():
+                    target_user = user
+                    break
+        if not target_user:
+            target_user = self.users_manager.get_user(target_input)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario '{target_input}' no encontrado")
+            return
+        
+        # Activar premium
+        target_user.nivel = "premium"
+        target_user.is_permanent_premium = True
+        
+        # Procesar comisión si tiene referrer
+        commission_msg = ""
+        if hasattr(target_user, 'referrer_id') and target_user.referrer_id:
+            referrer = self.users_manager.get_user(target_user.referrer_id)
+            if referrer:
+                payment_result = referrer.add_paid_referral(monto)
+                commission_msg = f"\n💰 Comisión a @{referrer.username}: {payment_result['commission']:.2f}€"
+                
+                # Notificar al referrer
+                try:
+                    msg = (
+                        f"💰 <b>¡COMISIÓN GANADA!</b>\n\n"
+                        f"Tu referido @{target_user.username} pagó {monto:.2f}€\n"
+                        f"Comisión: {payment_result['commission']:.2f}€ (10%)\n"
+                        f"Nuevo saldo: {payment_result['new_balance']:.2f}€\n\n"
+                    )
+                    if payment_result['earned_free_week']:
+                        msg += (
+                            f"🎁 <b>¡BONUS!</b> Ganaste 1 semana premium gratis\n"
+                            f"Total referidos pagos: {payment_result['total_paid_referrals']}\n"
+                        )
+                    await self.notifier.send_message(referrer.chat_id, msg)
+                except Exception as e:
+                    logger.error(f"Error notificando comisión: {e}")
+        
+        self.users_manager.save_users()
+        
+        username_display = target_user.username or f"ID:{target_user.chat_id}"
+        await update.message.reply_text(
+            f"✅ Pago procesado\n\n"
+            f"Usuario: @{username_display}\n"
+            f"Monto: {monto:.2f}€\n"
+            f"Premium: Activado{commission_msg}"
+        )
+        logger.info(f"Admin procesó pago de {monto:.2f}€ para @{username_display}")
     
     async def handle_marcar_pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para /pago @username o ID o nombre"""
@@ -1370,6 +1512,7 @@ Tu saldo sigue disponible.
         # Handlers de comandos
         self.telegram_app.add_handler(CommandHandler("start", self.handle_start))
         self.telegram_app.add_handler(CommandHandler("activar", self.handle_activar_premium))
+        self.telegram_app.add_handler(CommandHandler("pagar_referido", self.handle_pagar_referido))
         self.telegram_app.add_handler(CommandHandler("pago", self.handle_marcar_pago))
         self.telegram_app.add_handler(CommandHandler("reset_saldo", self.handle_reset_saldo))
         self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))

@@ -214,27 +214,18 @@ class User:
     
     def calculate_free_weeks_earned(self) -> int:
         """
-        Calcula cuántas semanas gratis ha ganado por referidos premium.
-        5 referidos premium activos = 1 semana gratis
+        Calcula cuántas semanas gratis ha ganado por referidos que PAGARON.
+        Usa referrals_paid (permanente) en lugar de premium activo (volátil).
+        3 referidos que pagaron = 1 semana gratis
         
         Returns:
             Número de semanas gratis ganadas
         """
-        if not hasattr(self, 'referred_users') or not self.referred_users:
-            return 0
+        # Usar contador permanente de referidos que pagaron
+        paid_count = getattr(self, 'referrals_paid', 0)
         
-        # Importar aquí para evitar circular import
-        premium_count = 0
-        from data.users import get_users_manager
-        manager = get_users_manager()
-        
-        for ref_id in self.referred_users:
-            ref_user = manager.get_user(ref_id)
-            if ref_user and ref_user.is_premium_active():
-                premium_count += 1
-        
-        # 5 referidos = 1 semana
-        weeks_earned = premium_count // 5
+        # 3 referidos pagos = 1 semana gratis
+        weeks_earned = paid_count // 3
         return weeks_earned
     
     def update_free_weeks(self):
