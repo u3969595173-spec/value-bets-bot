@@ -80,6 +80,9 @@ class ValueScanner:
             commence_str = ev.get('commence_time')
             if commence_str:
                 try:
+                    # Normalizar formato: reemplazar espacio por T si es necesario
+                    if ' ' in commence_str and 'T' not in commence_str:
+                        commence_str = commence_str.replace(' ', 'T')
                     commence_time = datetime.fromisoformat(commence_str.replace('Z', '+00:00'))
                     if commence_time <= now_utc:
                         discarded['time_range'] += 1
@@ -87,8 +90,8 @@ class ValueScanner:
                     if commence_time > max_time:
                         discarded['time_range'] += 1
                         continue
-                except Exception:
-                    logger.warning(f"[SCANNER] No se pudo parsear commence_time: {commence_str}")
+                except Exception as e:
+                    logger.warning(f"[SCANNER] No se pudo parsear commence_time: {commence_str} - {e}")
                     continue
             else:
                 logger.warning(f"[SCANNER] Evento sin commence_time: {ev.get('id')}")
