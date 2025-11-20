@@ -1718,30 +1718,51 @@ Tu saldo sigue disponible.
             # Filtrar solo picks con confianza ≥55 (calidad mínima)
             quality_candidates = [c for c in candidates if c.get('confidence_score', 0) >= 55]
             
-            # FILTRO CONSERVADOR: Bloquear spreads arriesgados (favoritos con ventaja grande)
+            # FILTRO INTELIGENTE: Convertir spreads arriesgados a ML si hay alternativa razonable
             conservative_candidates = []
             for c in quality_candidates:
                 sport_key = c.get('sport_key', '')
                 market_key = c.get('market_key', '')
                 point = c.get('point', 0)
+                odds = c.get('odds', 0)
                 
-                # Solo filtrar spreads negativos (favoritos)
+                # Detectar spread arriesgado (favorito con ventaja grande)
+                is_risky_spread = False
                 if market_key == 'spreads' and point is not None and point < 0:
-                    # NHL: bloquear < -1.5
-                    if 'hockey' in sport_key and point < -1.5:
-                        logger.info(f"❌ Rechazado (NHL spread arriesgado): {c.get('selection')} {point}")
-                        continue
-                    # Fútbol: bloquear < -2.5
-                    elif 'soccer' in sport_key and point < -2.5:
-                        logger.info(f"❌ Rechazado (Soccer spread arriesgado): {c.get('selection')} {point}")
-                        continue
-                    # NFL: bloquear < -6.5
-                    elif 'americanfootball' in sport_key and point < -6.5:
-                        logger.info(f"❌ Rechazado (NFL spread arriesgado): {c.get('selection')} {point}")
-                        continue
+                    # NHL: spreads < -1.5 son arriesgados
+                    if 'hockey' in sport_key and point < -1.5 and odds > 2.5:
+                        is_risky_spread = True
+                    # Fútbol: spreads < -2.5 son arriesgados
+                    elif 'soccer' in sport_key and point < -2.5 and odds > 2.5:
+                        is_risky_spread = True
+                    # NFL: spreads < -6.5 son arriesgados
+                    elif 'americanfootball' in sport_key and point < -6.5 and odds > 2.5:
+                        is_risky_spread = True
                 
-                # Si pasa todos los filtros, agregarlo
-                conservative_candidates.append(c)
+                # Si es spread arriesgado, buscar alternativa ML del mismo partido
+                if is_risky_spread:
+                    # Buscar ML del mismo equipo en el mismo evento
+                    ml_alternative = None
+                    for alt in quality_candidates:
+                        same_event = alt.get('id') == c.get('id')
+                        same_team = alt.get('selection') == c.get('selection')
+                        is_ml = alt.get('market_key') == 'h2h'
+                        ml_odds = alt.get('odds', 0)
+                        
+                        if same_event and same_team and is_ml and 1.8 <= ml_odds <= 2.4:
+                            ml_alternative = alt
+                            break
+                    
+                    if ml_alternative:
+                        logger.info(f"🔄 Spread arriesgado detectado: {c.get('selection')} {point} @ {odds}")
+                        logger.info(f"✅ Cambiando a ML: {ml_alternative.get('selection')} @ {ml_alternative.get('odds')} (más seguro)")
+                        conservative_candidates.append(ml_alternative)
+                    else:
+                        logger.info(f"❌ Spread arriesgado sin alternativa ML: {c.get('selection')} {point} @ {odds}")
+                        # No agregar, saltarlo
+                else:
+                    # Pick normal, agregarlo
+                    conservative_candidates.append(c)
             
             if not conservative_candidates:
                 logger.info(f"📊 {len(candidates)} picks encontrados pero ninguno cumple criterios conservadores")
