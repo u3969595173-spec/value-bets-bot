@@ -73,7 +73,14 @@ class User:
         free_weeks_earned: int = 0,
         # Bank dinámico semanal
         dynamic_bank: float = 200.0,
-        dynamic_bank_last_reset: str = None
+        dynamic_bank_last_reset: str = None,
+        # Sistema de pago semanal (20% de ganancias)
+        week_start_bank: float = 200.0,
+        weekly_profit: float = 0.0,
+        weekly_fee_due: float = 0.0,
+        weekly_fee_paid: bool = False,
+        base_fee_paid: bool = False,
+        week_start_date: str = None
     ):
         self.chat_id = chat_id
         self.nivel = nivel.lower()  # "gratis" o "premium"
@@ -104,6 +111,14 @@ class User:
         # Bank dinámico semanal
         self.dynamic_bank = dynamic_bank
         self.dynamic_bank_last_reset = dynamic_bank_last_reset or self._get_current_date()
+        
+        # Sistema de pago semanal (20% de ganancias)
+        self.week_start_bank = week_start_bank
+        self.weekly_profit = weekly_profit
+        self.weekly_fee_due = weekly_fee_due
+        self.weekly_fee_paid = weekly_fee_paid
+        self.base_fee_paid = base_fee_paid
+        self.week_start_date = week_start_date or self._get_current_date()
     
     def _get_current_date(self) -> str:
         """Obtiene la fecha actual en formato YYYY-MM-DD en timezone configurado."""
@@ -407,7 +422,91 @@ class User:
         # Actualizar bank dinámico también
         self.update_dynamic_bank(bet_result)
     
-    def get_stats(self) -> Dict:
+    def update_dynamic_bank(self, bet_result: Dict):
+        """
+        Actualiza el bank dinámico semanal (200€ base) según resultados.
+        Cada apuesta es 10% del bank actual.
+        """
+        if self.nivel != "premium":
+            return
+        
+        stake = bet_result.get('stake', 0)
+        odd = bet_result.get('odd', 0)
+        won = bet_result.get('won', False)
+        
+        if won:
+            profit = stake * (odd - 1)
+            self.dynamic_bank += profit
+        else:
+            self.dynamic_bank -= stake
+        
+        # No permitir bank negativo
+        if self.dynamic_bank < 0:
+            self.dynamic_bank = 0
+    
+    def calculate_weekly_stats(self):
+        """
+        Calcula las estadísticas de la semana:
+        - Ganancia/pérdida total (dynamic_bank - 200€)
+        - 20% adeudado si hubo ganancia
+        """
+        if self.nivel != "premium":
+            return
+        
+        # Calcular profit de la semana
+        self.weekly_profit = self.dynamic_bank - self.week_start_bank
+        
+        # Si hubo ganancia, calcular 20%
+        if self.weekly_profit > 0:
+            self.weekly_fee_due = self.weekly_profit * 0.20
+        else:
+            self.weekly_fee_due = 0.0
+        
+        # Resetear flags de pago
+        self.weekly_fee_paid = False
+        self.base_fee_paid = False
+    
+    def reset_weekly_cycle(self):
+        """
+        Reinicia el ciclo semanal (cada lunes):
+        - Calcula stats finales de la semana
+        - Reinicia dynamic_bank a 200€
+        - Actualiza fecha de inicio
+        """
+        if self.nivel != "premium":
+            return
+        
+        # Calcular stats antes de resetear
+        self.calculate_weekly_stats()
+        
+        # Resetear bank a 200€
+        self.week_start_bank = 200.0
+        self.dynamic_bank = 200.0
+        self.week_start_date = self._get_current_date()
+        self.dynamic_bank_last_reset = self._get_current_date()
+    
+    def mark_base_fee_paid(self):
+        """Marca el pago base de 15€ como pagado."""
+        self.base_fee_paid = True
+    
+    def mark_weekly_fee_paid(self):
+        """Marca el 20% de ganancias como pagado."""
+        self.weekly_fee_paid = True
+    
+    def get_payment_status(self) -> Dict:
+        """Retorna el estado de pagos del usuario."""
+        return {
+            'base_fee': PREMIUM_PRICE_EUR,
+            'base_paid': self.base_fee_paid,
+            'weekly_profit': self.weekly_profit,
+            'weekly_fee_due': self.weekly_fee_due,
+            'weekly_fee_paid': self.weekly_fee_paid,
+            'total_due': PREMIUM_PRICE_EUR if not self.base_fee_paid else 0 + (self.weekly_fee_due if not self.weekly_fee_paid else 0),
+            'dynamic_bank_current': self.dynamic_bank,
+            'week_start_bank': self.week_start_bank
+        }
+    
+    def get_stats(self):
         """Retorna estadísticas del usuario premium."""
         if self.nivel != "premium" or self.total_bets == 0:
             return {}
@@ -454,7 +553,16 @@ class User:
             'saldo_comision': self.saldo_comision,
             'suscripcion_fin': self.suscripcion_fin,
             'total_commission_earned': self.total_commission_earned,
-            'free_weeks_earned': self.free_weeks_earned
+            'free_weeks_earned': self.free_weeks_earned,
+            # Bank dinámico y sistema de pagos semanales
+            'dynamic_bank': self.dynamic_bank,
+            'dynamic_bank_last_reset': self.dynamic_bank_last_reset,
+            'week_start_bank': self.week_start_bank,
+            'weekly_profit': self.weekly_profit,
+            'weekly_fee_due': self.weekly_fee_due,
+            'weekly_fee_paid': self.weekly_fee_paid,
+            'base_fee_paid': self.base_fee_paid,
+            'week_start_date': self.week_start_date
         }
     
     @staticmethod

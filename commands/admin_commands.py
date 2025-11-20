@@ -198,12 +198,82 @@ async def admin_list_pending_withdrawals(admin_id: str) -> str:
         return f"❌ Error al obtener pendientes: {str(e)}"
 
 
+async def admin_marcar_pago(admin_id: str, user_id: str, payment_type: str) -> str:
+    """
+    Comando admin para marcar pagos como completados
+    
+    Args:
+        admin_id: ID del administrador
+        user_id: ID del usuario
+        payment_type: Tipo de pago: "base" (15€), "plus" (20%), o "ambos"
+    
+    Returns:
+        Mensaje de confirmación
+    """
+    try:
+        # Verificar que es admin
+        ADMIN_IDS = ["ADMIN_USER_ID_1", "ADMIN_USER_ID_2"]  # Configurar IDs reales
+        
+        if admin_id not in ADMIN_IDS:
+            return "❌ No tienes permisos de administrador"
+        
+        users_manager = get_users_manager()
+        user = users_manager.get_user(user_id)
+        
+        if not user:
+            return f"❌ Usuario {user_id} no encontrado"
+        
+        if user.nivel != "premium":
+            return f"❌ Usuario {user_id} no es Premium"
+        
+        payment_type = payment_type.lower()
+        
+        if payment_type == "base":
+            user.mark_base_fee_paid()
+            users_manager.save()
+            return (f"✅ **PAGO BASE REGISTRADO**\n\n"
+                   f"👤 Usuario: {user_id}\n"
+                   f"💰 Monto: 15 €\n"
+                   f"📝 Tipo: Pago base semanal")
+        
+        elif payment_type == "plus":
+            if user.weekly_fee_due <= 0:
+                return f"❌ Usuario no tiene comisión pendiente (20%)"
+            
+            user.mark_weekly_fee_paid()
+            users_manager.save()
+            return (f"✅ **COMISIÓN 20% REGISTRADA**\n\n"
+                   f"👤 Usuario: {user_id}\n"
+                   f"💰 Monto: {user.weekly_fee_due:.2f} €\n"
+                   f"📝 Tipo: 20% de ganancias semanales")
+        
+        elif payment_type == "ambos":
+            user.mark_base_fee_paid()
+            if user.weekly_fee_due > 0:
+                user.mark_weekly_fee_paid()
+            users_manager.save()
+            
+            total = 15.0 + user.weekly_fee_due
+            return (f"✅ **PAGOS REGISTRADOS**\n\n"
+                   f"👤 Usuario: {user_id}\n"
+                   f"💰 Pago base: 15 €\n"
+                   f"💰 Comisión 20%: {user.weekly_fee_due:.2f} €\n"
+                   f"💵 **TOTAL: {total:.2f} €**")
+        
+        else:
+            return "❌ Tipo de pago inválido. Usa: base, plus, o ambos"
+    
+    except Exception as e:
+        return f"❌ Error al marcar pago: {str(e)}"
+
+
 # Mapeo de comandos administrativos
 ADMIN_COMMAND_HANDLERS = {
     "/admin_activar": admin_activar_premium,
     "/admin_pagar": admin_pagar_comision, 
     "/admin_stats": admin_stats_user,
-    "/admin_pendientes": admin_list_pending_withdrawals
+    "/admin_pendientes": admin_list_pending_withdrawals,
+    "/marcar_pago": admin_marcar_pago
 }
 
 
@@ -255,5 +325,15 @@ async def process_admin_command(admin_id: str, command: str, args: str = "") -> 
     elif command == "/admin_pendientes":
         # Sin argumentos
         return await handler(admin_id)
+    
+    elif command == "/marcar_pago":
+        # Formato: /marcar_pago user_id tipo
+        parts = args.split()
+        if len(parts) < 2:
+            return "❌ Uso: /marcar_pago <user_id> <tipo>\nTipo: base | plus | ambos"
+        
+        user_id = parts[0]
+        payment_type = parts[1]
+        return await handler(admin_id, user_id, payment_type)
     
     return f"❌ Error procesando comando {command}"

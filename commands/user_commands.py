@@ -475,6 +475,65 @@ async def get_free_limit_message() -> str:
     return format_free_limit_message()
 
 
+async def handle_mi_deuda_command(chat_id: str) -> str:
+    """
+    Comando /mi_deuda - Muestra el estado de pagos del usuario premium.
+    """
+    users_manager = get_users_manager()
+    user = users_manager.get_user(chat_id)
+    
+    if not user:
+        return "❌ Usuario no encontrado. Usa /start primero."
+    
+    if user.nivel != "premium":
+        return "❌ Este comando es solo para usuarios Premium."
+    
+    payment_status = user.get_payment_status()
+    
+    # Construir mensaje
+    message = "💳 *ESTADO DE PAGOS*\n"
+    message += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    # Información de Premium
+    if user.suscripcion_fin:
+        from datetime import datetime
+        try:
+            expiry = datetime.fromisoformat(user.suscripcion_fin)
+            message += f"📅 Premium vence: {expiry.strftime('%d/%m/%Y')}\n\n"
+        except:
+            pass
+    
+    # Pago base semanal (15€)
+    base_status = "✅ Pagado" if payment_status['base_paid'] else "❌ Pendiente"
+    message += f"*PAGO BASE SEMANAL*\n"
+    message += f"Monto: {payment_status['base_fee']:.2f} €\n"
+    message += f"Estado: {base_status}\n\n"
+    
+    # Comisión por ganancias (20%)
+    message += f"*COMISIÓN POR GANANCIAS (20%)*\n"
+    message += f"Bank inicio semana: {payment_status['week_start_bank']:.2f} €\n"
+    message += f"Bank actual: {payment_status['dynamic_bank_current']:.2f} €\n"
+    
+    if payment_status['weekly_profit'] > 0:
+        fee_status = "✅ Pagado" if payment_status['weekly_fee_paid'] else "❌ Pendiente"
+        message += f"Ganancia semanal: +{payment_status['weekly_profit']:.2f} €\n"
+        message += f"20% adeudado: {payment_status['weekly_fee_due']:.2f} €\n"
+        message += f"Estado: {fee_status}\n"
+    elif payment_status['weekly_profit'] < 0:
+        message += f"Pérdida semanal: {payment_status['weekly_profit']:.2f} €\n"
+        message += f"20% adeudado: 0.00 € (no se cobra en pérdidas)\n"
+    else:
+        message += f"Sin ganancias aún esta semana\n"
+        message += f"20% adeudado: 0.00 €\n"
+    
+    # Total adeudado
+    message += f"\n━━━━━━━━━━━━━━━━━━━━\n"
+    message += f"💰 *TOTAL ADEUDADO: {payment_status['total_due']:.2f} €*\n\n"
+    message += f"💬 Contacta al administrador para realizar el pago."
+    
+    return message
+
+
 # Mapeo de comandos
 COMMAND_HANDLERS = {
     "/start": handle_start_command,
@@ -489,6 +548,7 @@ COMMAND_HANDLERS = {
     "/pagar": handle_pagar_command,
     "/premium": handle_premium_command,
     "/result": handle_result_command,
+    "/mi_deuda": handle_mi_deuda_command,
 }
 
 
