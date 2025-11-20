@@ -628,6 +628,11 @@ class ValueBotMonitor:
         
         # Obtener usuarios premium y gratuitos
         users = list(self.users_manager.users.values())
+        
+        # Forzar check de reset diario para todos los usuarios
+        for user in users:
+            user._check_reset()
+        
         premium_users = [user for user in users if user.is_premium_active()]
         free_users = [user for user in users if not user.is_premium_active()]
         
