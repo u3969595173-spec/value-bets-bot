@@ -34,13 +34,13 @@ except ImportError:
 from data.state import AlertsState
 from analyzer import generate_analysis
 
-# thresholds per sport key prefix (más estrictos para picks de mayor calidad)
+# thresholds per sport key prefix (ELITE - ultra-profesional)
 THRESHOLDS = {
-    'basketball': 1.12,  # NBA más estricto
-    'americanfootball': 1.12,
-    'baseball': 1.13,  # MLB más estricto
-    'soccer': 1.10,  # Fútbol más estricto
-    'tennis': 1.09,  # Tenis más estricto
+    'basketball': 1.15,  # NBA elite (antes 1.12)
+    'americanfootball': 1.15,
+    'baseball': 1.16,  # MLB elite (antes 1.13)
+    'soccer': 1.13,  # Fútbol elite (antes 1.10)
+    'tennis': 1.12,  # Tenis elite (antes 1.09)
 }
 
 
@@ -49,7 +49,7 @@ def implied_prob_from_odd(odd: float) -> float:
 
 
 class ValueScanner:
-    def __init__(self, min_odd: float = 1.5, max_odd: float = 3.0, min_prob: float = 0.55):
+    def __init__(self, min_odd: float = 1.6, max_odd: float = 2.8, min_prob: float = 0.58):
         self.min_odd = min_odd
         self.max_odd = max_odd
         self.min_prob = min_prob

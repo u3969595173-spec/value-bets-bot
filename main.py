@@ -78,11 +78,17 @@ CHAT_ID = os.getenv("CHAT_ID")
 # Configuracin de filtros (optimizados para exactamente 5 picks premium + 1 gratis)
 MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))  # Cuotas mínimas más estrictas
 MAX_ODD = float(os.getenv("MAX_ODD", "3.0"))  # Cuotas máximas más conservadoras
-MIN_PROB = float(os.getenv("MIN_PROB", "0.55"))  # 55% mínimo para mayor precisión
+MIN_PROB = float(os.getenv("MIN_PROB", "0.58"))  # 58% mínimo ultra-profesional
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))  # Exactamente 5 para premium
 MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "5"))  # Garantizar siempre 5
 MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Exactamente 5 picks
 FREE_PICKS_PER_DAY = int(os.getenv("FREE_PICKS_PER_DAY", "1"))  # 1 pick para usuarios gratis
+
+# Configuración ultra-profesional (reduce fallos)
+MIN_CONFIDENCE_SCORE = float(os.getenv("MIN_CONFIDENCE_SCORE", "60"))  # Mínimo 60/100 de confianza
+REQUIRE_LINE_MOVEMENT = os.getenv("REQUIRE_LINE_MOVEMENT", "true").lower() == "true"  # Obligar análisis de línea
+REQUIRE_FAVORABLE_MOVEMENT = os.getenv("REQUIRE_FAVORABLE_MOVEMENT", "true").lower() == "true"  # Solo RLM favorable
+MIN_VALUE_THRESHOLD = float(os.getenv("MIN_VALUE_THRESHOLD", "1.12"))  # Value mínimo global
 
 # Deportes a monitorear
 SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp,tennis_wta,baseball_mlb").split(",")
@@ -324,7 +330,32 @@ class ValueBotMonitor:
                 
                 logger.info(f"🎯 Found {len(candidates)} initial candidates with movement analysis")
                 
-                # Log detallado de candidatos
+                # FILTRO ULTRA-PROFESIONAL 1: Confidence Score mínimo
+                candidates = [c for c in candidates if c.get('confidence_score', 0) >= MIN_CONFIDENCE_SCORE]
+                logger.info(f"📊 After confidence filter (>={MIN_CONFIDENCE_SCORE}): {len(candidates)} candidates")
+                
+                # FILTRO ULTRA-PROFESIONAL 2: Requerir line movement data
+                if REQUIRE_LINE_MOVEMENT:
+                    candidates = [c for c in candidates if c.get('line_movement') is not None]
+                    logger.info(f"📈 After line movement filter: {len(candidates)} candidates")
+                
+                # FILTRO ULTRA-PROFESIONAL 3: Solo movimientos favorables (RLM)
+                if REQUIRE_FAVORABLE_MOVEMENT:
+                    candidates = [c for c in candidates 
+                                if c.get('line_movement', {}).get('is_favorable', False) == True]
+                    logger.info(f"✅ After favorable movement filter: {len(candidates)} candidates")
+                
+                # FILTRO ULTRA-PROFESIONAL 4: Value mínimo global
+                candidates = [c for c in candidates if c.get('value', 0) >= MIN_VALUE_THRESHOLD]
+                logger.info(f"💎 After value threshold (>={MIN_VALUE_THRESHOLD}): {len(candidates)} candidates")
+                
+                # FILTRO ULTRA-PROFESIONAL 5: Priorizar steam moves
+                steam_candidates = [c for c in candidates if c.get('has_steam_move', False)]
+                if len(steam_candidates) >= MIN_DAILY_PICKS:
+                    candidates = steam_candidates
+                    logger.info(f"🔥 Using only STEAM MOVES: {len(candidates)} candidates")
+                
+                # Log detallado de candidatos FINALES
                 for i, candidate in enumerate(candidates[:10], 1):
                     sport = candidate.get('sport', 'Unknown')
                     selection = candidate.get('selection', 'Unknown')
@@ -431,27 +462,56 @@ class ValueBotMonitor:
 
     async def send_alert_to_user(self, user: User, candidate: Dict) -> bool:
         """
-        Enva alerta a un usuario especfico
+        Enva alerta a un usuario especfico con DOUBLE-CHECK ultra-profesional
         """
         try:
             # DEBUG: Log candidato recibido
             logger.info(f"DEBUG: Attempting to send alert - User: {user.chat_id}, Candidate: {candidate.get('selection', 'N/A')}, Odds: {candidate.get('odds', 'N/A')}")
             
-            # Verificar si el usuario puede recibir ms alertas
+            # DOUBLE-CHECK 1: Verificar límites de usuario
             if not user.can_send_alert():
                 logger.info(f"DEBUG: User {user.chat_id} REJECTED - reached daily limit")
                 return False
             
-            # Verificar si es usuario premium
-            if not user.is_premium_active():
-                logger.info(f"DEBUG: User {user.chat_id} REJECTED - not premium")
+            # DOUBLE-CHECK 2: Verificar premium (excepto para picks gratis)
+            if not user.is_premium_active() and user.alerts_sent_today >= FREE_PICKS_PER_DAY:
+                logger.info(f"DEBUG: User {user.chat_id} REJECTED - not premium and already received free pick")
                 return False
             
-            logger.info(f"DEBUG: User {user.chat_id} PASSED checks - preparing alert")
+            # DOUBLE-CHECK 3: Re-verificar que el pick cumple criterios mínimos
+            odds = candidate.get('odds', 0)
+            prob = candidate.get('prob', 0)
+            value = candidate.get('value', 0)
+            confidence = candidate.get('confidence_score', 0)
+            
+            if odds < MIN_ODD or odds > MAX_ODD:
+                logger.warning(f"⚠️ REJECTED: Odds {odds} fuera de rango ({MIN_ODD}-{MAX_ODD})")
+                return False
+            
+            if prob < MIN_PROB:
+                logger.warning(f"⚠️ REJECTED: Prob {prob:.1%} menor que mínimo {MIN_PROB:.1%}")
+                return False
+            
+            if value < MIN_VALUE_THRESHOLD:
+                logger.warning(f"⚠️ REJECTED: Value {value:.3f} menor que mínimo {MIN_VALUE_THRESHOLD}")
+                return False
+            
+            if confidence < MIN_CONFIDENCE_SCORE:
+                logger.warning(f"⚠️ REJECTED: Confidence {confidence} menor que mínimo {MIN_CONFIDENCE_SCORE}")
+                return False
+            
+            # DOUBLE-CHECK 4: Verificar que el evento no ha empezado
+            commence_time = candidate.get('commence_time')
+            if commence_time:
+                if isinstance(commence_time, str):
+                    commence_time = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
+                if commence_time <= datetime.now(timezone.utc):
+                    logger.warning(f"⚠️ REJECTED: Evento ya comenzó")
+                    return False
+            
+            logger.info(f"✅ DOUBLE-CHECK PASSED - User {user.chat_id}")
             
             # Calcular stake recomendado
-            odds = candidate.get('odds', 2.0)
-            prob = candidate.get('prob', 0.5)
             stake = user.calculate_stake(odds, prob)
             
             logger.info(f"DEBUG: Stake calculated: {stake}")
