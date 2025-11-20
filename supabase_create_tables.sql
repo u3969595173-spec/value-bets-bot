@@ -107,5 +107,61 @@ CREATE POLICY "Enable insert for anon" ON injuries FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for anon" ON injuries FOR UPDATE USING (true);
 
 -- ============================================================================
+-- TABLA USERS (usuarios del bot)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+    chat_id VARCHAR(255) PRIMARY KEY,
+    username VARCHAR(200),
+    nivel VARCHAR(50) NOT NULL DEFAULT 'gratis',
+    bankroll DECIMAL(10, 2) DEFAULT 1000.0,
+    initial_bankroll DECIMAL(10, 2) DEFAULT 1000.0,
+    alerts_sent_today INTEGER DEFAULT 0,
+    last_reset_date VARCHAR(50),
+    total_bets INTEGER DEFAULT 0,
+    won_bets INTEGER DEFAULT 0,
+    total_profit DECIMAL(10, 2) DEFAULT 0.0,
+    bet_history JSONB DEFAULT '[]'::jsonb,
+    -- Campos de referidos
+    referral_code VARCHAR(50) UNIQUE,
+    referrer_id VARCHAR(255),
+    referred_users JSONB DEFAULT '[]'::jsonb,
+    premium_weeks_earned INTEGER DEFAULT 0,
+    premium_expires_at VARCHAR(100),
+    is_permanent_premium BOOLEAN DEFAULT false,
+    -- Campos de comisiones
+    referrals_paid INTEGER DEFAULT 0,
+    saldo_comision DECIMAL(10, 2) DEFAULT 0.0,
+    suscripcion_fin VARCHAR(100),
+    total_commission_earned DECIMAL(10, 2) DEFAULT 0.0,
+    free_weeks_earned INTEGER DEFAULT 0,
+    -- Bank dinámico y pagos
+    dynamic_bank DECIMAL(10, 2) DEFAULT 200.0,
+    dynamic_bank_last_reset VARCHAR(50),
+    week_start_bank DECIMAL(10, 2) DEFAULT 200.0,
+    weekly_profit DECIMAL(10, 2) DEFAULT 0.0,
+    weekly_fee_due DECIMAL(10, 2) DEFAULT 0.0,
+    weekly_fee_paid BOOLEAN DEFAULT false,
+    base_fee_paid BOOLEAN DEFAULT false,
+    week_start_date VARCHAR(50),
+    payment_status VARCHAR(50) DEFAULT 'pending',
+    last_payment_date VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_users_nivel ON users(nivel);
+CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_users_referrer ON users(referrer_id);
+
+-- RLS
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read access for all users" ON users FOR SELECT USING (true);
+CREATE POLICY "Enable insert for anon" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for anon" ON users FOR UPDATE USING (true);
+
+-- ============================================================================
 -- ✅ LISTO! Ahora ejecuta el script de migración de Python
 -- ============================================================================
+
