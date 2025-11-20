@@ -1764,7 +1764,13 @@ Tu saldo sigue disponible.
             commence_time = candidate.get('commence_time')
             if commence_time:
                 if isinstance(commence_time, str):
-                    commence_time = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
+                    # Manejar formato '2025-11-21 00:10 UTC'
+                    commence_str = commence_time.replace(' UTC', '').replace(' ', 'T')
+                    if 'T' not in commence_str:
+                        commence_str = commence_str + 'T00:00:00'
+                    if '+' not in commence_str and 'Z' not in commence_str:
+                        commence_str = commence_str + '+00:00'
+                    commence_time = datetime.fromisoformat(commence_str)
                 if commence_time <= datetime.now(timezone.utc):
                     logger.warning(f"⚠️ REJECTED: Evento ya comenzó")
                     return False
