@@ -1630,14 +1630,23 @@ Tu saldo sigue disponible.
             
             # Sistema adaptativo: garantizar 5 picks bajando probabilidad gradualmente
             target_picks = 5
+            min_confidence_adaptive = MIN_CONFIDENCE_SCORE  # Iniciar con 60
+            
             if len(candidates) < target_picks:
                 logger.warning(f"⚠️  Solo {len(candidates)} picks al 60%")
                 logger.info(f"🔧 BAJANDO PROBABILIDAD GRADUALMENTE para alcanzar {target_picks} picks...")
                 
                 # Bajar de 60% → 58% → 56% → 54% → 52%
+                # Y bajar confianza: 60 → 55 → 50 → 45 → 40
                 prob_levels = [0.58, 0.56, 0.54, 0.52]
+                confidence_levels = [55, 50, 45, 40]
                 
-                for prob_level in prob_levels:
+                for prob_level, conf_level in zip(prob_levels, confidence_levels):
+                    if len(candidates) >= target_picks:
+                        break
+                    
+                    logger.info(f"📊 Intentando con prob mínima: {prob_level*100:.0f}%...")
+                    min_confidence_adaptive = conf_level  # Actualizar umbral de confianza
                     if len(candidates) >= target_picks:
                         break
                     
@@ -1666,6 +1675,10 @@ Tu saldo sigue disponible.
                     logger.info(f"   ✅ Total acumulado: {len(candidates)} picks")
                 
                 logger.info(f"🎯 RESULTADO FINAL: {len(candidates)} picks encontrados")
+            
+            # Guardar el umbral de confianza adaptado en cada candidato
+            for candidate in candidates:
+                candidate['min_confidence_used'] = min_confidence_adaptive
             
             # Ordenar por valor (value) y seleccionar top 5
             if len(candidates) > target_picks:
@@ -1713,6 +1726,7 @@ Tu saldo sigue disponible.
             prob = candidate.get('prob', 0)
             value = candidate.get('value', 0)
             confidence = candidate.get('confidence_score', 0)
+            min_conf_threshold = candidate.get('min_confidence_used', MIN_CONFIDENCE_SCORE)  # Usar umbral adaptado
             
             if odds < MIN_ODD or odds > MAX_ODD:
                 logger.warning(f"⚠️ REJECTED: Odds {odds} fuera de rango ({MIN_ODD}-{MAX_ODD})")
@@ -1726,8 +1740,8 @@ Tu saldo sigue disponible.
                 logger.warning(f"⚠️ REJECTED: Value {value:.3f} menor que mínimo {MIN_VALUE_THRESHOLD}")
                 return False
             
-            if confidence < MIN_CONFIDENCE_SCORE:
-                logger.warning(f"⚠️ REJECTED: Confidence {confidence} menor que mínimo {MIN_CONFIDENCE_SCORE}")
+            if confidence < min_conf_threshold:
+                logger.warning(f"⚠️ REJECTED: Confidence {confidence} menor que mínimo adaptado {min_conf_threshold}")
                 return False
             
             # DOUBLE-CHECK 4: Verificar que el evento no ha empezado
