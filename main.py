@@ -1130,6 +1130,67 @@ class ValueBotMonitor:
         
         # SISTEMA MEJORADO: Actualizar lesiones
         if ENHANCED_SYSTEM_AVAILABLE and injury_scraper:
+            logger.info("Actualizando lesiones de deportes...")
+            try:
+                # Actualizar lesiones de NBA
+                nba_injuries = injury_scraper.get_injuries('nba')
+                if nba_injuries:
+                    for injury in nba_injuries:
+                        injury['sport_key'] = 'basketball_nba'
+                    saved = historical_db.save_injuries(nba_injuries)
+                    logger.info(f"{saved} lesiones NBA guardadas")
+                
+                # Actualizar lesiones de NFL
+                nfl_injuries = injury_scraper.get_injuries('nfl')
+                if nfl_injuries:
+                    for injury in nfl_injuries:
+                        injury['sport_key'] = 'americanfootball_nfl'
+                    saved = historical_db.save_injuries(nfl_injuries)
+                    logger.info(f"{saved} lesiones NFL guardadas")
+                
+                # Actualizar lesiones de MLB
+                mlb_injuries = injury_scraper.get_injuries('mlb')
+                if mlb_injuries:
+                    for injury in mlb_injuries:
+                        injury['sport_key'] = 'baseball_mlb'
+                    saved = historical_db.save_injuries(mlb_injuries)
+                    logger.info(f"{saved} lesiones MLB guardadas")
+                    
+            except Exception as e:
+                logger.error(f"Error actualizando lesiones: {e}")
+        
+        # Fetch inicial de eventos del da
+        events = await self.fetch_and_update_events()
+        
+        # SISTEMA MEJORADO: Guardar eventos en BD
+        if ENHANCED_SYSTEM_AVAILABLE and historical_db:
+            try:
+                for event in events:
+                    match_data = {
+                        'id': event.get('id', ''),
+                        'sport_key': event.get('sport_key', ''),
+                        'home_team': event.get('home_team') or event.get('home', ''),
+                        'away_team': event.get('away_team') or event.get('away', ''),
+                        'commence_time': event.get('commence_time', '')
+                    }
+                    if match_data['id']:
+                        historical_db.save_match(match_data)
+                logger.info(f"{len(events)} eventos guardados en BD")
+            except Exception as e:
+                logger.error(f"Error guardando eventos en BD: {e}")
+        
+        # Log resumen de eventos por deporte
+        sport_counts = {}
+        for event in events:
+            sport = event.get('sport_key', 'unknown')
+            sport_counts[sport] = sport_counts.get(sport, 0) + 1
+        
+        logger.info("Events by sport:")
+        for sport, count in sport_counts.items():
+            sport_name = translate_sport(sport, sport)
+            logger.info(f"   {sport_name}: {count} events")
+        
+        logger.info(f"Daily initialization complete - monitoring {len(events)} events")
     
     async def weekly_reset(self):
         """
@@ -1181,70 +1242,6 @@ class ValueBotMonitor:
         logger.info(f"   - Estados reseteados: {reset_count}")
         logger.info(f"   - Premiums activos: {reset_count}")
     
-        # SISTEMA MEJORADO: Actualizar lesiones
-        if ENHANCED_SYSTEM_AVAILABLE and injury_scraper:
-            logger.info("Ã°Å¸â€œÅ  Actualizando lesiones de deportes...")
-            try:
-                # Actualizar lesiones de NBA
-                nba_injuries = injury_scraper.get_injuries('nba')
-                if nba_injuries:
-                    for injury in nba_injuries:
-                        injury['sport_key'] = 'basketball_nba'
-                    saved = historical_db.save_injuries(nba_injuries)
-                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones NBA guardadas")
-                
-                # Actualizar lesiones de NFL
-                nfl_injuries = injury_scraper.get_injuries('nfl')
-                if nfl_injuries:
-                    for injury in nfl_injuries:
-                        injury['sport_key'] = 'americanfootball_nfl'
-                    saved = historical_db.save_injuries(nfl_injuries)
-                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones NFL guardadas")
-                
-                # Actualizar lesiones de MLB
-                mlb_injuries = injury_scraper.get_injuries('mlb')
-                if mlb_injuries:
-                    for injury in mlb_injuries:
-                        injury['sport_key'] = 'baseball_mlb'
-                    saved = historical_db.save_injuries(mlb_injuries)
-                    logger.info(f"Ã¢Å“â€¦ {saved} lesiones MLB guardadas")
-                    
-            except Exception as e:
-                logger.error(f"Error actualizando lesiones: {e}")
-        
-        # Fetch inicial de eventos del da
-        events = await self.fetch_and_update_events()
-        
-        # SISTEMA MEJORADO: Guardar eventos en BD
-        if ENHANCED_SYSTEM_AVAILABLE and historical_db:
-            try:
-                for event in events:
-                    match_data = {
-                        'id': event.get('id', ''),
-                        'sport_key': event.get('sport_key', ''),
-                        'home_team': event.get('home_team') or event.get('home', ''),
-                        'away_team': event.get('away_team') or event.get('away', ''),
-                        'commence_time': event.get('commence_time', '')
-                    }
-                    if match_data['id']:
-                        historical_db.save_match(match_data)
-                logger.info(f"Ã¢Å“â€¦ {len(events)} eventos guardados en BD")
-            except Exception as e:
-                logger.error(f"Error guardando eventos en BD: {e}")
-        
-        # Log resumen de eventos por deporte
-        sport_counts = {}
-        for event in events:
-            sport = event.get('sport_key', 'unknown')
-            sport_counts[sport] = sport_counts.get(sport, 0) + 1
-        
-        logger.info("Events by sport:")
-        for sport, count in sport_counts.items():
-            sport_name = translate_sport(sport, sport)
-            logger.info(f"   {sport_name}: {count} events")
-        
-        logger.info(f" Daily initialization complete - monitoring {len(events)} events")
-
     async def hourly_update(self):
         """
         Actualizacin cada hora (o cada 10 minutos en producciÃƒÂ³n)
