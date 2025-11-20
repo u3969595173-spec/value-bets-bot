@@ -2185,19 +2185,26 @@ Tu saldo sigue disponible.
                         if pinnacle_odd is not None:
                             break
             
-            # Si encontramos Pinnacle, actualizar el candidato ANTES de todo
+            # Si encontramos Pinnacle, verificar que no baje demasiado las odds
             if pinnacle_odd is not None:
-                logger.info(f"✅ Pinnacle encontrada: {candidate['selection']} @ {pinnacle_odd} (original: @ {candidate['odds']})")
-                candidate['original_odds'] = candidate['odds']
-                candidate['original_bookmaker'] = candidate.get('bookmaker', 'N/A')
-                candidate['odds'] = pinnacle_odd
-                candidate['bookmaker'] = pinnacle_bookmaker
-                candidate['was_bet365_adjusted'] = True  # Reutilizamos flag para indicar ajuste a casa estándar
-                # Recalcular value con cuota de Pinnacle
-                prob = candidate.get('prob', 0)
-                if prob > 0:
-                    candidate['value'] = pinnacle_odd * prob
-                    candidate['implied_probability'] = 1.0 / pinnacle_odd if pinnacle_odd > 0 else 0
+                original_odds = candidate['odds']
+                drop_percentage = ((original_odds - pinnacle_odd) / original_odds) * 100
+                
+                # Solo usar Pinnacle si la bajada es <= 15%
+                if drop_percentage <= 15:
+                    logger.info(f"✅ Pinnacle encontrada: {candidate['selection']} @ {pinnacle_odd} (original: @ {original_odds}, bajada: {drop_percentage:.1f}%)")
+                    candidate['original_odds'] = original_odds
+                    candidate['original_bookmaker'] = candidate.get('bookmaker', 'N/A')
+                    candidate['odds'] = pinnacle_odd
+                    candidate['bookmaker'] = pinnacle_bookmaker
+                    candidate['was_bet365_adjusted'] = True
+                    # Recalcular value con cuota de Pinnacle
+                    prob = candidate.get('prob', 0)
+                    if prob > 0:
+                        candidate['value'] = pinnacle_odd * prob
+                        candidate['implied_probability'] = 1.0 / pinnacle_odd if pinnacle_odd > 0 else 0
+                else:
+                    logger.warning(f"⚠️ Pinnacle @ {pinnacle_odd} rechazada (bajada {drop_percentage:.1f}% > 15%), manteniendo @ {original_odds}")
             
             # PASO 2: Intentar ajustar línea si es necesario (MODO ESTRICTO primero)
             adjusted = adjust_line_if_needed(candidate, event_bookmakers, use_relaxed=False)
