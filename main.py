@@ -1272,6 +1272,55 @@ Tu saldo sigue disponible.
         await update.message.reply_text(f"✅ Retiro rechazado para @{target_user.username}")
         logger.info(f"Admin rechazó retiro para {target_user_id}")
     
+    async def handle_limpiar_usuarios(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /limpiar_usuarios - BORRA TODOS LOS USUARIOS"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        # Confirmación de seguridad
+        if not context.args or context.args[0] != "CONFIRMAR":
+            await update.message.reply_text(
+                "⚠️ **ADVERTENCIA: Esto borrará TODOS los usuarios**\n\n"
+                "Para confirmar escribe:\n"
+                "`/limpiar_usuarios CONFIRMAR`"
+            )
+            return
+        
+        try:
+            # Limpiar memoria
+            count = len(self.users_manager.users)
+            self.users_manager.users.clear()
+            
+            # Limpiar JSON
+            self.users_manager.save()
+            
+            # Limpiar Supabase
+            from data.users import supabase
+            if supabase:
+                supabase.table('users').delete().neq('chat_id', 'imposible').execute()
+                await update.message.reply_text(
+                    f"✅ **Base de datos limpiada**\n\n"
+                    f"🗑️ {count} usuarios borrados de memoria y JSON\n"
+                    f"🗑️ Tabla Supabase limpiada\n\n"
+                    f"Ahora todos deben hacer `/start` de nuevo"
+                )
+            else:
+                await update.message.reply_text(
+                    f"✅ **Memoria limpiada**\n\n"
+                    f"🗑️ {count} usuarios borrados\n"
+                    f"⚠️ Supabase no disponible\n\n"
+                    f"Ahora todos deben hacer `/start` de nuevo"
+                )
+            
+            logger.info(f"Admin limpió base de datos: {count} usuarios borrados")
+            
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error limpiando usuarios: {e}")
+            logger.error(f"Error en limpiar_usuarios: {e}")
+    
     def setup_telegram_handlers(self):
         """Configura los handlers de Telegram para botones y comandos"""
         if not self.telegram_app:
@@ -1290,6 +1339,7 @@ Tu saldo sigue disponible.
         self.telegram_app.add_handler(CommandHandler("aprobar_retiro", self.handle_aprobar_retiro))
         self.telegram_app.add_handler(CommandHandler("rechazar_retiro", self.handle_rechazar_retiro))
         self.telegram_app.add_handler(CommandHandler("asignar_referido", self.handle_asignar_referido))
+        self.telegram_app.add_handler(CommandHandler("limpiar_usuarios", self.handle_limpiar_usuarios))
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
