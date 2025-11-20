@@ -33,6 +33,8 @@ from data.users import get_users_manager, User
 from data.state import AlertsState
 from notifier.alert_formatter import format_premium_alert
 from utils.sport_translator import translate_sport
+from data.alerts_tracker import get_alerts_tracker
+from data.results_api import verify_pick_result
 
 # Imports de Telegram para botones y handlers
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -539,6 +541,51 @@ class ValueBotMonitor:
         
         logger.info(f"Admin solicitó lista premium: {len(premium_users)} usuarios, total: {total_adeudado:.2f}€")
     
+    async def handle_stats_reales(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /stats_reales - muestra performance real verificada"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        tracker = get_alerts_tracker()
+        stats = tracker.get_global_stats()
+        
+        if stats['total'] == 0:
+            await update.message.reply_text("📊 Aún no hay alertas enviadas para analizar.")
+            return
+        
+        # Crear reporte
+        report = "📊 **PERFORMANCE REAL VERIFICADA**\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        report += f"📈 **RESUMEN GENERAL**\n"
+        report += f"Total alertas: {stats['total']}\n"
+        report += f"Verificadas: {stats['won'] + stats['lost'] + stats['push']}\n"
+        report += f"Pendientes: {stats['pending']}\n\n"
+        
+        if stats['won'] + stats['lost'] > 0:
+            report += f"✅ Ganadoras: {stats['won']} ({stats['win_rate']:.1f}%)\n"
+            report += f"❌ Perdidas: {stats['lost']}\n"
+            report += f"🔄 Push: {stats['push']}\n\n"
+            
+            report += f"💰 **FINANCIERO**\n"
+            report += f"Total apostado: {stats['total_staked']:.2f}€\n"
+            report += f"Profit/Loss: {stats['total_profit']:+.2f}€\n"
+            report += f"ROI: {stats['roi']:+.1f}%\n\n"
+        
+        # Stats por deporte
+        if stats['by_sport']:
+            report += f"🏆 **POR DEPORTE**\n"
+            for sport, sport_stats in stats['by_sport'].items():
+                sport_name = translate_sport(sport)
+                report += f"{sport_name}: {sport_stats['won']}/{sport_stats['total']} "
+                report += f"({sport_stats['win_rate']:.1f}%)\n"
+        
+        await update.message.reply_text(report)
+        logger.info(f"Admin solicitó stats reales: {stats['won']}W-{stats['lost']}L, ROI: {stats['roi']:.1f}%")
+    
     def setup_telegram_handlers(self):
         """Configura los handlers de Telegram para botones y comandos"""
         if not self.telegram_app:
@@ -551,6 +598,7 @@ class ValueBotMonitor:
         self.telegram_app.add_handler(CommandHandler("reset_saldo", self.handle_reset_saldo))
         self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))
         self.telegram_app.add_handler(CommandHandler("lista_premium", self.handle_lista_premium))
+        self.telegram_app.add_handler(CommandHandler("stats_reales", self.handle_stats_reales))
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
@@ -983,6 +1031,21 @@ class ValueBotMonitor:
             user.record_alert_sent()
             self.users_manager.save()
             
+            # Registrar alerta en el tracker para verificación posterior
+            tracker = get_alerts_tracker()
+            tracker.add_alert(
+                user_id=user.chat_id,
+                event_id=candidate.get('id', ''),
+                sport=candidate.get('sport_key', ''),
+                pick_type=candidate.get('market', 'h2h'),
+                selection=candidate.get('selection', ''),
+                odds=odds,
+                stake=stake,
+                point=candidate.get('point'),
+                game_time=candidate.get('commence_time')
+            )
+            logger.info(f"✅ Alert tracked for verification: {candidate.get('selection')}")
+            
             # SISTEMA MEJORADO: Guardar predicciÃƒÂ³n en BD
             if ENHANCED_SYSTEM_AVAILABLE and historical_db:
                 try:
@@ -1242,6 +1305,89 @@ class ValueBotMonitor:
         logger.info(f"   - Estados reseteados: {reset_count}")
         logger.info(f"   - Premiums activos: {reset_count}")
     
+    async def verify_pending_results(self):
+        """
+        Verifica resultados de alertas pendientes y actualiza bankrolls
+        Se ejecuta cada 3 horas para verificar partidos completados
+        """
+        logger.info("🔍 Verificando resultados de alertas pendientes...")
+        
+        tracker = get_alerts_tracker()
+        pending = tracker.get_pending_alerts(hours_old=3)
+        
+        if not pending:
+            logger.info("   No hay alertas pendientes para verificar")
+            return
+        
+        verified_count = 0
+        won_count = 0
+        lost_count = 0
+        push_count = 0
+        
+        for alert in pending:
+            alert_id = alert['alert_id']
+            
+            try:
+                # Verificar resultado usando la API
+                result = verify_pick_result(
+                    event_id=alert['event_id'],
+                    sport=alert['sport'],
+                    pick_type=alert['pick_type'],
+                    selection=alert['selection'],
+                    point=alert.get('point')
+                )
+                
+                if result is None:
+                    continue
+                
+                verified_count += 1
+                
+                # Calcular profit/loss
+                stake = alert['stake']
+                odds = alert['odds']
+                
+                if result == 'won':
+                    profit_loss = stake * (odds - 1)
+                    won_count += 1
+                elif result == 'lost':
+                    profit_loss = -stake
+                    lost_count += 1
+                else:
+                    profit_loss = 0
+                    push_count += 1
+                
+                # Actualizar tracker
+                tracker.update_alert_result(alert_id, result, profit_loss)
+                
+                # Actualizar bankroll del usuario
+                user = self.users_manager.get_user(alert['user_id'])
+                if user and hasattr(user, 'dynamic_bank'):
+                    user.dynamic_bank += profit_loss
+                    logger.info(f"   💰 User {alert['user_id']}: {result.upper()} → {profit_loss:+.2f}€")
+                
+                # Notificar resultado
+                try:
+                    if result == 'won':
+                        msg = f"✅ **PICK GANADOR**\n\n🎯 {alert['selection']}\n💰 Ganancia: +{profit_loss:.2f}€"
+                    elif result == 'lost':
+                        msg = f"❌ **PICK PERDIDO**\n\n🎯 {alert['selection']}\n💸 Pérdida: {profit_loss:.2f}€"
+                    else:
+                        msg = f"🔄 **EMPATE (Push)**\n\n🎯 {alert['selection']}\n💰 Stake devuelto"
+                    
+                    if user and hasattr(user, 'dynamic_bank'):
+                        msg += f"\n📊 Bankroll: {user.dynamic_bank:.2f}€"
+                    
+                    await self.notifier.send_message(alert['user_id'], msg)
+                except Exception as e:
+                    logger.error(f"Error notificando: {e}")
+                
+            except Exception as e:
+                logger.error(f"Error verificando alerta {alert_id}: {e}")
+        
+        self.users_manager.save()
+        
+        logger.info(f"✅ Verificación completada: {verified_count} verificadas ({won_count}W-{lost_count}L-{push_count}P)")
+    
     async def hourly_update(self):
         """
         Actualizacin cada hora (o cada 10 minutos en producciÃƒÂ³n)
@@ -1325,6 +1471,10 @@ class ValueBotMonitor:
                 if now.hour == 2 and now.minute < 5:  # Ventana de 5 minutos
                     logger.info("Ã°Å¸â€¢Â°Ã¯Â¸Â Hora de verificaciÃƒÂ³n de resultados (2 AM)")
                     await self.verify_results()
+                
+                # Verificar resultados de picks cada 3 horas
+                if now.hour % 3 == 0 and now.minute < 5:
+                    await self.verify_pending_results()
                 
                 # Realizar actualizacin cada hora
                 await self.hourly_update()
