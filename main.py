@@ -768,6 +768,7 @@ Tu solicitud de retiro ha sido enviada al admin.
         
         # PROCESAR COMISIÓN DE REFERIDO (10% de 15€ = 1.50€)
         commission_paid = 0.0
+        logger.info(f"🔍 DEBUG /pago - Usuario {target_user.chat_id}: tiene referrer_id={hasattr(target_user, 'referrer_id')}, valor={getattr(target_user, 'referrer_id', None)}")
         if hasattr(target_user, 'referrer_id') and target_user.referrer_id:
             referrer = self.users_manager.get_user(target_user.referrer_id)
             if referrer:
