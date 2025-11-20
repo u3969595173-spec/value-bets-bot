@@ -390,9 +390,11 @@ class ValueBotMonitor:
         
         amount = target_user.get_weekly_payment()
         target_user.accumulated_balance = 0.0
+        target_user.payment_status = "paid"
+        target_user.last_payment_date = datetime.now().strftime("%Y-%m-%d")
         self.users_manager.save_users()
         
-        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{target_username}\n\nSaldo reiniciado a 0€")
+        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{target_username}\n\nSaldo reiniciado a 0€\nEstado: PAGADO ✅")
         logger.info(f"Admin marcó pago de {amount:.2f}€ para @{target_username}")
     
     async def handle_reset_saldo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -468,22 +470,36 @@ class ValueBotMonitor:
         report += "━━━━━━━━━━━━━━━━━━━━━\n\n"
         
         total_adeudado = 0.0
+        paid_count = 0
+        pending_count = 0
         
         for i, user in enumerate(premium_users, 1):
             username = user.username or f"ID:{user.chat_id}"
             pago_base = 15.0  # PREMIUM_PRICE_EUR
             comision_refs = user.accumulated_balance
             total_user = pago_base + comision_refs
-            total_adeudado += total_user
             
-            report += f"**{i}. @{username}**\n"
+            # Determinar estado de pago
+            payment_status = getattr(user, 'payment_status', 'pending')
+            status_emoji = "✅" if payment_status == "paid" else "❌"
+            
+            if payment_status == "paid":
+                paid_count += 1
+            else:
+                pending_count += 1
+                total_adeudado += total_user
+            
+            report += f"**{i}. @{username}** {status_emoji}\n"
             report += f"   • ID: `{user.chat_id}`\n"
             report += f"   • Pago base: {pago_base:.2f}€\n"
             report += f"   • Comisión refs: {comision_refs:.2f}€\n"
             report += f"   • **Total: {total_user:.2f}€**\n"
+            report += f"   • Estado: {'PAGADO ✅' if payment_status == 'paid' else 'PENDIENTE ❌'}\n"
             report += f"   • Referidos: {len(user.referrals)}\n\n"
         
         report += "━━━━━━━━━━━━━━━━━━━━━\n"
+        report += f"✅ Pagados: {paid_count}\n"
+        report += f"❌ Pendientes: {pending_count}\n"
         report += f"💰 **TOTAL A COBRAR: {total_adeudado:.2f}€**\n"
         report += f"\n📅 Próximo reset: Lunes 06:00 AM"
         
@@ -1104,9 +1120,67 @@ class ValueBotMonitor:
         for user in users:
             user._check_reset()  # Reset contadores diarios
         
+        # Verificar si es lunes para reset semanal
+        now = datetime.now(AMERICA_TZ)
+        if now.weekday() == 0:  # 0 = Lunes
+            await self.weekly_reset()
+        
         # Limpiar sent_alerts del da anterior
         self.sent_alerts.clear()
         
+        # SISTEMA MEJORADO: Actualizar lesiones
+        if ENHANCED_SYSTEM_AVAILABLE and injury_scraper:
+    
+    async def weekly_reset(self):
+        """
+        Reset semanal (lunes 06:00 AM):
+        - Quitar premium a usuarios que no pagaron
+        - Resetear estados de pago a 'pending'
+        - Resetear saldos de comisiones
+        """
+        logger.info("🔄 WEEKLY RESET - Lunes 06:00 AM")
+        
+        users = list(self.users_manager.users.values())
+        premium_users = [u for u in users if u.is_premium_active()]
+        
+        removed_count = 0
+        reset_count = 0
+        
+        for user in premium_users:
+            payment_status = getattr(user, 'payment_status', 'pending')
+            
+            # Si NO pagó, quitar premium
+            if payment_status != 'paid':
+                user.nivel = "gratis"
+                user.is_permanent_premium = False
+                removed_count += 1
+                logger.info(f"❌ Premium removido: @{user.username} (ID: {user.chat_id}) - No pagó")
+                
+                # Notificar al usuario
+                try:
+                    msg = "⚠️ **Tu suscripción Premium ha expirado**\n\n"
+                    msg += "No se detectó el pago semanal de 15€.\n\n"
+                    msg += "Para reactivar Premium:\n"
+                    msg += "1. Realiza el pago de 15€\n"
+                    msg += "2. Contacta al admin\n\n"
+                    msg += "💡 Vuelve a tener acceso premium en cuanto pagues."
+                    await self.notifier.send_message(user.chat_id, msg)
+                except Exception as e:
+                    logger.error(f"Error notificando a {user.chat_id}: {e}")
+            else:
+                # Si pagó, resetear estado para nueva semana
+                user.payment_status = 'pending'
+                reset_count += 1
+                logger.info(f"✅ Estado reseteado: @{user.username} (ID: {user.chat_id}) - Sigue activo")
+        
+        # Guardar cambios
+        self.users_manager.save_users()
+        
+        logger.info(f"🔄 Weekly reset completado:")
+        logger.info(f"   - Premiums removidos: {removed_count}")
+        logger.info(f"   - Estados reseteados: {reset_count}")
+        logger.info(f"   - Premiums activos: {reset_count}")
+    
         # SISTEMA MEJORADO: Actualizar lesiones
         if ENHANCED_SYSTEM_AVAILABLE and injury_scraper:
             logger.info("Ã°Å¸â€œÅ  Actualizando lesiones de deportes...")

@@ -81,7 +81,10 @@ class User:
         weekly_fee_due: float = 0.0,
         weekly_fee_paid: bool = False,
         base_fee_paid: bool = False,
-        week_start_date: str = None
+        week_start_date: str = None,
+        # Sistema de control de pagos
+        payment_status: str = "pending",  # "pending", "paid"
+        last_payment_date: str = None
     ):
         self.chat_id = chat_id
         self.username = username
@@ -123,6 +126,10 @@ class User:
         self.weekly_fee_paid = weekly_fee_paid
         self.base_fee_paid = base_fee_paid
         self.week_start_date = week_start_date or self._get_current_date()
+        
+        # Sistema de control de pagos
+        self.payment_status = payment_status  # "pending" o "paid"
+        self.last_payment_date = last_payment_date
     
     def _get_current_date(self) -> str:
         """Obtiene la fecha actual en formato YYYY-MM-DD en timezone configurado."""
@@ -573,7 +580,10 @@ class User:
             'weekly_fee_due': self.weekly_fee_due,
             'weekly_fee_paid': self.weekly_fee_paid,
             'base_fee_paid': self.base_fee_paid,
-            'week_start_date': self.week_start_date
+            'week_start_date': self.week_start_date,
+            # Sistema de control de pagos
+            'payment_status': self.payment_status,
+            'last_payment_date': self.last_payment_date
         }
     
     @staticmethod
