@@ -1023,6 +1023,118 @@ async def cmd_marcar_pago(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error al marcar pago: {e}")
 
 
+async def cmd_activar_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando admin: /activar_premium <user_id> [semanas]
+    Activa premium cuando recibes comprobante de pago
+    """
+    admin_id = str(update.effective_user.id)
+    
+    # Solo admin puede usar este comando
+    if admin_id != CHAT_ID:
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "❌ Uso: /activar_premium <user_id> [semanas]\n"
+            "Ejemplo: /activar_premium 123456789 1"
+        )
+        return
+    
+    user_id = context.args[0]
+    semanas = int(context.args[1]) if len(context.args) > 1 else 1
+    
+    try:
+        user = users_manager.get_user(user_id)
+        if not user:
+            await update.message.reply_text(f"❌ Usuario {user_id} no encontrado")
+            return
+        
+        # Activar premium
+        user.add_free_premium_week(semanas)
+        users_manager.save()
+        
+        # Notificar al usuario
+        await application.bot.send_message(
+            chat_id=user_id,
+            text=f"🎉 ¡Tu suscripción Premium ha sido activada por {semanas} semana(s)!\n\n"
+                 f"✅ Recibirás 3-5 pronósticos diarios de máxima calidad.\n"
+                 f"📅 Válido hasta: {user.suscripcion_fin.strftime('%d/%m/%Y') if user.suscripcion_fin else 'N/A'}"
+        )
+        
+        # Confirmar al admin
+        await update.message.reply_text(
+            f"✅ Premium activado para {user_id}\n"
+            f"⏰ Duración: {semanas} semana(s)\n"
+            f"📅 Expira: {user.suscripcion_fin.strftime('%d/%m/%Y') if user.suscripcion_fin else 'N/A'}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error activando premium: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
+
+async def cmd_reiniciar_saldo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando admin: /reiniciar_saldo <user_id>
+    Reinicia saldo de referidos a 0 después de pagar al usuario
+    """
+    admin_id = str(update.effective_user.id)
+    
+    # Solo admin puede usar este comando
+    if admin_id != CHAT_ID:
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "❌ Uso: /reiniciar_saldo <user_id>\n"
+            "Ejemplo: /reiniciar_saldo 123456789"
+        )
+        return
+    
+    user_id = context.args[0]
+    
+    try:
+        stats = referral_system.get_user_stats(user_id)
+        if not stats:
+            await update.message.reply_text(f"❌ Usuario {user_id} no encontrado en sistema de referidos")
+            return
+        
+        saldo_anterior = stats['balance_usd']
+        
+        if saldo_anterior <= 0:
+            await update.message.reply_text(f"❌ Usuario {user_id} no tiene saldo disponible")
+            return
+        
+        # Registrar pago y reiniciar saldo
+        success, msg = referral_system.process_withdrawal(user_id, saldo_anterior, approved=True, admin_id=admin_id)
+        
+        if success:
+            # Notificar al usuario
+            await application.bot.send_message(
+                chat_id=user_id,
+                text=f"💰 Tu pago de ${saldo_anterior:.2f} USD ha sido procesado.\n\n"
+                     f"✅ Saldo reiniciado a $0.00\n"
+                     f"Gracias por tu confianza!"
+            )
+            
+            # Confirmar al admin
+            await update.message.reply_text(
+                f"✅ Pago procesado y saldo reiniciado\n\n"
+                f"👤 Usuario: {user_id}\n"
+                f"💰 Monto: ${saldo_anterior:.2f} USD\n"
+                f"📊 Saldo actual: $0.00"
+            )
+        else:
+            await update.message.reply_text(f"❌ Error: {msg}")
+        
+    except Exception as e:
+        logger.error(f"Error reiniciando saldo: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
+
 # ============================================================================
 # MAIN
 # ============================================================================
@@ -1041,10 +1153,15 @@ def main():
     application.add_handler(CommandHandler("estadisticas", cmd_estadisticas))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("mi_deuda", cmd_mi_deuda))
+    
+    # Comandos admin
     application.add_handler(CommandHandler("aprobar_retiro", cmd_aprobar_retiro))
     application.add_handler(CommandHandler("reporte_referidos", cmd_reporte_referidos))
     application.add_handler(CommandHandler("detectar_fraude", cmd_detectar_fraude))
     application.add_handler(CommandHandler("marcar_pago", cmd_marcar_pago))
+    application.add_handler(CommandHandler("activar_premium", cmd_activar_premium))
+    application.add_handler(CommandHandler("reiniciar_saldo", cmd_reiniciar_saldo))
+    
     application.add_handler(CallbackQueryHandler(callback_query_handler))
     
     # Programar tareas semanales usando job_queue de telegram
