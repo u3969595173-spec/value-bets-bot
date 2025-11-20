@@ -26,6 +26,32 @@ def run_http_server():
     print(f"[RUN_RENDER v4] HTTP health server listening on port {port}")
     server.serve_forever()
 
+async def run_both_bots():
+    """Ejecuta ambos bots en paralelo usando asyncio.gather()"""
+    import bot_telegram
+    import main
+    
+    # Crear tareas para ambos bots
+    async def run_telegram_bot():
+        """Wrapper para ejecutar bot_telegram.main() de forma async"""
+        loop = asyncio.get_event_loop()
+        # bot_telegram.main() es sync, lo ejecutamos en executor
+        await loop.run_in_executor(None, bot_telegram.main)
+    
+    async def run_prediction_bot():
+        """Ejecuta el bot de predicciones"""
+        # main.main() ya es async y llama a ValueBotMonitor().run_continuous_monitoring()
+        await main.main()
+    
+    print("[RUN_RENDER v4] ✅ Arrancando bot de COMANDOS (bot_telegram.py)...")
+    print("[RUN_RENDER v4] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
+    
+    # Ejecutar ambos bots en paralelo
+    await asyncio.gather(
+        run_telegram_bot(),
+        run_prediction_bot()
+    )
+
 if __name__ == "__main__":
     print("[RUN_RENDER v4] Iniciando bot completo: Comandos + Pronósticos con HTTP health server...")
     print(f"[RUN_RENDER v4] Python: {sys.version}")
@@ -36,28 +62,11 @@ if __name__ == "__main__":
     http_thread.start()
     
     try:
-        # Importar ambos bots
-        import bot_telegram
-        import main
+        # Ejecutar ambos bots en paralelo
+        asyncio.run(run_both_bots())
         
-        print("[RUN_RENDER v4] ✅ Arrancando bot de COMANDOS (bot_telegram.py)...")
-        print("[RUN_RENDER v4] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
-        
-        # Crear evento loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Función para correr bot_telegram en thread separado
-        def run_bot_telegram():
-            bot_telegram.main()
-        
-        # Arrancar bot de comandos en thread separado
-        telegram_thread = Thread(target=run_bot_telegram, daemon=False)
-        telegram_thread.start()
-        
-        # Arrancar bot de pronósticos en el main thread
-        loop.run_until_complete(main.ValueBotMonitor().run())
-        
+    except KeyboardInterrupt:
+        print("[RUN_RENDER v4] Bot stopped by user")
     except Exception as e:
         print(f"[RUN_RENDER v4] ERROR: {e}")
         import traceback
