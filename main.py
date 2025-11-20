@@ -1474,12 +1474,6 @@ Tu saldo sigue disponible.
             logger.info(f"✅ Picks seleccionados para envío: {len(selected_candidates)}")
             
             logger.info(f"📤 Returning {len(selected_candidates)} picks para alertas")
-            else:
-                logger.info(f"✅ {len(candidates)} picks en rango óptimo ({MIN_DAILY_PICKS}-{MAX_DAILY_PICKS})")
-                selected_candidates = candidates
-            
-            
-            logger.info(f"📤 Returning {len(selected_candidates)} picks para alertas")
             
             # El pick de mayor valor va para usuarios free (será el primero después de ordenar)
             if selected_candidates:
