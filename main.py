@@ -2218,7 +2218,8 @@ Tu saldo sigue disponible.
                 event_id = candidate.get('id', '')
                 event_bookmakers = []
                 
-                for event in events:
+                # Buscar en imminent_events (no 'events')
+                for event in imminent_events:
                     if event.get('id') == event_id:
                         event_bookmakers = event.get('bookmakers', [])
                         break
