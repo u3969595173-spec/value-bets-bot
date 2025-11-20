@@ -90,13 +90,13 @@ REQUIRE_LINE_MOVEMENT = os.getenv("REQUIRE_LINE_MOVEMENT", "true").lower() == "t
 REQUIRE_FAVORABLE_MOVEMENT = os.getenv("REQUIRE_FAVORABLE_MOVEMENT", "true").lower() == "true"  # Solo RLM favorable
 MIN_VALUE_THRESHOLD = float(os.getenv("MIN_VALUE_THRESHOLD", "1.12"))  # Value mínimo global
 
-# Deportes a monitorear
-SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp,tennis_wta,baseball_mlb").split(",")
+# Deportes a monitorear (OPTIMIZADO: 4 deportes para 25-30 días con 20k créditos)
+SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp").split(",")
 
-# ConfiguraciÃƒÂ³n de tiempo
+# ConfiguraciÃƒÂ³n de tiempo (OPTIMIZADO para durar API credits)
 AMERICA_TZ = ZoneInfo("America/New_York")  # Hora de AmÃƒÂ©rica
 DAILY_START_HOUR = 6  # 6 AM
-UPDATE_INTERVAL_MINUTES = 14  # Actualizar cada 14 minutos (optimiza consumo de créditos)
+UPDATE_INTERVAL_MINUTES = 30  # 30 minutos = 48 requests/día × 4 deportes = 192 créditos/día
 ALERT_WINDOW_HOURS = 8  # Alertar cuando falten menos de 8 horas (ampliado para más picks)
 
 # Configuracin adicional
