@@ -27,7 +27,7 @@ def run_http_server():
     server.serve_forever()
 
 if __name__ == "__main__":
-    print("[RUN_RENDER v4] Iniciando bot de Telegram con HTTP health server...")
+    print("[RUN_RENDER v4] Iniciando bot completo: Comandos + Pronósticos con HTTP health server...")
     print(f"[RUN_RENDER v4] Python: {sys.version}")
     print(f"[RUN_RENDER v4] Working dir: {os.getcwd()}")
     
@@ -36,8 +36,28 @@ if __name__ == "__main__":
     http_thread.start()
     
     try:
+        # Importar ambos bots
         import bot_telegram
-        bot_telegram.main()
+        import main
+        
+        print("[RUN_RENDER v4] ✅ Arrancando bot de COMANDOS (bot_telegram.py)...")
+        print("[RUN_RENDER v4] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
+        
+        # Crear evento loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Función para correr bot_telegram en thread separado
+        def run_bot_telegram():
+            bot_telegram.main()
+        
+        # Arrancar bot de comandos en thread separado
+        telegram_thread = Thread(target=run_bot_telegram, daemon=False)
+        telegram_thread.start()
+        
+        # Arrancar bot de pronósticos en el main thread
+        loop.run_until_complete(main.ValueBotMonitor().run())
+        
     except Exception as e:
         print(f"[RUN_RENDER v4] ERROR: {e}")
         import traceback
