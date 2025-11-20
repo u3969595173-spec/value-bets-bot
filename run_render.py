@@ -76,32 +76,31 @@ def run_http_server():
     server.serve_forever()
 
 async def run_both_bots():
-    """Ejecuta solo el bot de predicciones (comandos deshabilitado temporalmente)"""
+    """Ejecuta bot con predicciones + comandos integrados"""
     import main
     
-    print("[RUN_RENDER v5] ✅ Arrancando bot de PRONÓSTICOS (main.py)...")
-    print("[RUN_RENDER v5] ⚠️ Bot de comandos deshabilitado temporalmente")
+    print("[RUN_RENDER v6] ✅ Arrancando bot UNIFICADO: predicciones + comandos con botones...")
     
-    # Solo ejecutar el bot de predicciones
+    # Ejecutar el bot unificado
     await main.main()
 
 if __name__ == "__main__":
-    print("[RUN_RENDER v5] Iniciando bot completo: Comandos (WEBHOOK) + Pronósticos con HTTP server...")
-    print(f"[RUN_RENDER v5] Python: {sys.version}")
-    print(f"[RUN_RENDER v5] Working dir: {os.getcwd()}")
+    print("[RUN_RENDER v6] Iniciando bot UNIFICADO: Predicciones + Comandos con botones permanentes...")
+    print(f"[RUN_RENDER v6] Python: {sys.version}")
+    print(f"[RUN_RENDER v6] Working dir: {os.getcwd()}")
     
     # Iniciar HTTP server en thread separado para Render
     http_thread = Thread(target=run_http_server, daemon=True)
     http_thread.start()
     
     try:
-        # Ejecutar ambos bots en paralelo
+        # Ejecutar bot unificado
         asyncio.run(run_both_bots())
         
     except KeyboardInterrupt:
-        print("[RUN_RENDER v5] Bot stopped by user")
+        print("[RUN_RENDER v6] Bot stopped by user")
     except Exception as e:
-        print(f"[RUN_RENDER v5] ERROR: {e}")
+        print(f"[RUN_RENDER v6] ERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

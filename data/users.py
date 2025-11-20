@@ -49,6 +49,7 @@ class User:
     def __init__(
         self, 
         chat_id: str,
+        username: str = None,
         nivel: str = "gratis",
         bankroll: float = DEFAULT_BANKROLL,
         initial_bankroll: float = DEFAULT_BANKROLL,
@@ -83,6 +84,7 @@ class User:
         week_start_date: str = None
     ):
         self.chat_id = chat_id
+        self.username = username
         self.nivel = nivel.lower()  # "gratis" o "premium"
         self.bankroll = bankroll
         self.initial_bankroll = initial_bankroll
@@ -97,6 +99,7 @@ class User:
         self.referral_code = referral_code or self._generate_referral_code()
         self.referrer_id = referrer_id  # ID del usuario que me refirió
         self.referred_users = referred_users or []  # Lista de IDs que he referido
+        self.referrals = self.referred_users  # Alias para compatibilidad
         self.premium_weeks_earned = premium_weeks_earned
         self.premium_expires_at = premium_expires_at
         self.is_permanent_premium = is_permanent_premium
@@ -104,6 +107,7 @@ class User:
         # Sistema de comisiones (NUEVO)
         self.referrals_paid = referrals_paid  # Cantidad de referidos que pagaron
         self.saldo_comision = saldo_comision  # Saldo acumulado en USD
+        self.accumulated_balance = saldo_comision  # Alias para compatibilidad (20% de ganancias)
         self.suscripcion_fin = suscripcion_fin  # Fecha fin de suscripción ISO
         self.total_commission_earned = total_commission_earned  # Total ganado histórico
         self.free_weeks_earned = free_weeks_earned  # Semanas gratis por referidos pagos
@@ -506,6 +510,12 @@ class User:
             'week_start_bank': self.week_start_bank
         }
     
+    def get_weekly_payment(self) -> float:
+        """Calcula el pago total semanal: 15€ base + 20% de ganancias referidos."""
+        base = PREMIUM_PRICE_EUR  # 15€
+        referral_bonus = self.accumulated_balance  # 20% de ganancias de referidos
+        return base + referral_bonus
+    
     def get_stats(self):
         """Retorna estadísticas del usuario premium."""
         if self.nivel != "premium" or self.total_bets == 0:
@@ -532,6 +542,7 @@ class User:
         """Serializa a diccionario."""
         return {
             'chat_id': self.chat_id,
+            'username': self.username,
             'nivel': self.nivel,
             'bankroll': self.bankroll,
             'initial_bankroll': self.initial_bankroll,
@@ -644,10 +655,22 @@ class UsersManager:
     
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Busca un usuario por su username de Telegram."""
+        username_lower = username.lower().replace("@", "")
         for user in self.users.values():
-            if user.username and user.username.lower() == username.lower():
+            if user.username and user.username.lower() == username_lower:
                 return user
         return None
+    
+    def add_user(self, chat_id: str, username: str, nivel: str = "gratis") -> User:
+        """Crea un nuevo usuario y lo guarda."""
+        user = User(chat_id=chat_id, username=username, nivel=nivel)
+        self.users[chat_id] = user
+        self.save()
+        return user
+    
+    def save_users(self):
+        """Alias para self.save() para compatibilidad."""
+        self.save()
     
     def get_referral_stats(self, chat_id: str) -> Dict:
         """Obtiene estadísticas de referidos para un usuario."""

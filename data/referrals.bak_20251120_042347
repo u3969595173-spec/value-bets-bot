@@ -1,0 +1,63 @@
+{
+  "last_updated": "2025-11-17T18:12:01.860889+00:00",
+  "total_users": 3,
+  "total_transactions": 1,
+  "referrals": {
+    "5901833301": {
+      "user_id": "5901833301",
+      "code": "131305D40613",
+      "referrer_id": null,
+      "referred_users": [
+        "1924480760",
+        "1191225333"
+      ],
+      "referred_paid": [],
+      "total_referrals": 2,
+      "paid_referrals": 0,
+      "balance_usd": 0.0,
+      "total_earned": 0.0,
+      "free_weeks_earned": 0,
+      "registered_at": "2025-11-17T08:00:00.000000+00:00",
+      "last_reward_date": null
+    },
+    "1924480760": {
+      "user_id": "1924480760",
+      "code": "192448076ABC",
+      "referrer_id": "5901833301",
+      "referred_users": [],
+      "referred_paid": [],
+      "total_referrals": 0,
+      "paid_referrals": 0,
+      "balance_usd": 0.0,
+      "total_earned": 0.0,
+      "free_weeks_earned": 0,
+      "registered_at": "2025-11-17T08:30:00.000000+00:00",
+      "last_reward_date": null
+    },
+    "1191225333": {
+      "user_id": "1191225333",
+      "code": "977E2A04C674",
+      "referrer_id": "5901833301",
+      "referred_users": [],
+      "referred_paid": [],
+      "total_referrals": 0,
+      "paid_referrals": 0,
+      "balance_usd": 0.0,
+      "total_earned": 0.0,
+      "free_weeks_earned": 0,
+      "registered_at": "2025-11-17T18:12:01.858331+00:00",
+      "last_reward_date": null
+    }
+  },
+  "transactions": [
+    {
+      "id": 1,
+      "user_id": "5901833301",
+      "type": "referral_registered",
+      "amount": 0.0,
+      "referred_user": "1191225333",
+      "description": "Nuevo referido registrado: 1191225333",
+      "timestamp": "2025-11-17T18:12:01.858803+00:00"
+    }
+  ]
+}

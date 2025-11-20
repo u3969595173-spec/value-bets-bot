@@ -34,6 +34,10 @@ from data.state import AlertsState
 from notifier.alert_formatter import format_premium_alert
 from utils.sport_translator import translate_sport
 
+# Imports de Telegram para botones y handlers
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
 # Imports del sistema mejorado (opcional)
 try:
     from data.historical_db import historical_db
@@ -135,6 +139,9 @@ class ValueBotMonitor:
         self.monitored_events: Dict[str, Dict] = {}  # event_id -> event_data
         self.sent_alerts: Set[str] = set()  # Para evitar duplicados
         
+        # Application de Telegram para handlers de botones
+        self.telegram_app = None
+        
         logger.info("ValueBotMonitor inicializado")
         logger.info(f"Deportes: {', '.join(SPORTS)}")
         logger.info(f"Filtros: odds {MIN_ODD}-{MAX_ODD}, prob {MIN_PROB:.0%}+")
@@ -147,7 +154,309 @@ class ValueBotMonitor:
             logger.info(f"   - Scraper de lesiones: {injury_scraper is not None}")
             logger.info(f"   - Modelo mejorado: {USING_ENHANCED_MODEL}")
         else:
-            logger.info("Ã¢Å¡Â Ã¯Â¸Â  Sistema mejorado no disponible, usando versiÃƒÂ³n bÃƒÂ¡sica")
+            logger.info("Ã¢Å¡Â Ã¯Â¸Â  Sistema mejorado no disponible, usando versiÃƒÂ³n bÃƒÂ¡sica")
+
+    def get_main_keyboard(self, is_admin: bool = False):
+        """Crea el teclado permanente con botones"""
+        if is_admin:
+            keyboard = [
+                [KeyboardButton("📊 Mis Stats"), KeyboardButton("💰 Mis Referidos")],
+                [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")],
+                [KeyboardButton("⚡ Activar Premium"), KeyboardButton("💵 Marcar Pago")],
+                [KeyboardButton("🔄 Reiniciar Saldo"), KeyboardButton("🔁 Reset Alertas")]
+            ]
+        else:
+            keyboard = [
+                [KeyboardButton("📊 Mis Stats"), KeyboardButton("💰 Mis Referidos")],
+                [KeyboardButton("👤 Mi Perfil"), KeyboardButton("💳 Estado Premium")]
+            ]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /start - muestra botones permanentes"""
+        chat_id = str(update.effective_chat.id)
+        username = update.effective_user.username or update.effective_user.first_name
+        
+        # Registrar usuario si no existe
+        user = self.users_manager.get_user(chat_id)
+        if not user:
+            user = self.users_manager.add_user(chat_id, username)
+            logger.info(f"Nuevo usuario registrado: {username} ({chat_id})")
+        
+        is_admin = (chat_id == CHAT_ID)
+        keyboard = self.get_main_keyboard(is_admin)
+        
+        welcome_msg = f"""
+🎯 ¡Bienvenido a Value Bets Bot!
+
+👋 Hola @{username}
+
+📊 **Sistema Activo:**
+• Monitoreo cada 30 minutos
+• 4 deportes profesionales
+• Filtros ultra-estrictos (58%+ prob)
+• Máximo 5 picks premium al día
+
+💎 **Tu Estado:** {'Premium ✅' if user.is_premium_active() else 'Free (1 pick/día)'}
+
+👇 Usa los botones para navegar:
+"""
+        await update.message.reply_text(welcome_msg, reply_markup=keyboard)
+    
+    async def handle_button_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para mensajes de botones"""
+        chat_id = str(update.effective_chat.id)
+        text = update.message.text
+        user = self.users_manager.get_user(chat_id)
+        
+        if not user:
+            await update.message.reply_text("❌ Usuario no registrado. Usa /start primero.")
+            return
+        
+        is_admin = (chat_id == CHAT_ID)
+        
+        # Stats
+        if text == "📊 Mis Stats":
+            msg = f"""
+📊 **Tus Estadísticas**
+
+👤 Usuario: @{user.username}
+💎 Estado: {'Premium ✅' if user.is_premium_active() else 'Free'}
+📅 Alertas hoy: {user.alerts_sent_today}/{MAX_ALERTS_PER_DAY if user.is_premium_active() else FREE_PICKS_PER_DAY}
+🗓️ Último reset: {user.last_reset_date}
+
+💰 **Sistema de Pagos:**
+• Pago base: 15€/semana
+• Ganancia referidos: {user.accumulated_balance:.2f}€
+• Total a pagar: {user.get_weekly_payment():.2f}€
+• Próximo reset: Lunes 06:00 AM
+"""
+            await update.message.reply_text(msg)
+        
+        # Referidos
+        elif text == "💰 Mis Referidos":
+            referral_link = f"https://t.me/{context.bot.username}?start={chat_id}"
+            total_refs = len(user.referrals)
+            
+            refs_list = "\n".join([f"• @{r}" for r in user.referrals[:10]]) if user.referrals else "Ninguno aún"
+            
+            msg = f"""
+💰 **Sistema de Referidos**
+
+🔗 **Tu link personal:**
+`{referral_link}`
+
+👥 Referidos totales: {total_refs}
+💵 Ganancia acumulada: {user.accumulated_balance:.2f}€
+
+📋 **Tus referidos:**
+{refs_list}
+
+💡 **Beneficios:**
+• 20% de las ganancias de cada referido
+• Se acumula semanalmente
+• Pago junto con tu tarifa base
+"""
+            await update.message.reply_text(msg)
+        
+        # Perfil
+        elif text == "👤 Mi Perfil":
+            msg = f"""
+👤 **Tu Perfil**
+
+🆔 ID: `{chat_id}`
+📛 Usuario: @{user.username}
+💎 Premium: {'Sí ✅' if user.is_premium_active() else 'No ❌'}
+📅 Registrado: {user.last_reset_date}
+
+📊 **Actividad:**
+• Alertas recibidas hoy: {user.alerts_sent_today}
+• Límite diario: {MAX_ALERTS_PER_DAY if user.is_premium_active() else FREE_PICKS_PER_DAY}
+
+💰 **Finanzas:**
+• Balance: {user.accumulated_balance:.2f}€
+• Pago semanal: {user.get_weekly_payment():.2f}€
+"""
+            await update.message.reply_text(msg)
+        
+        # Estado Premium
+        elif text == "💳 Estado Premium":
+            if user.is_premium_active():
+                msg = f"""
+💳 **Estado Premium Activo** ✅
+
+🎯 Beneficios activos:
+• 5 picks premium al día
+• Filtros ultra-profesionales
+• Alertas prioritarias
+• Sistema de referidos 20%
+
+💰 **Pagos:**
+• Base semanal: 15€
+• Ganancia referidos: {user.accumulated_balance:.2f}€
+• **Total a pagar:** {user.get_weekly_payment():.2f}€
+
+📅 Próximo reset: Lunes 06:00 AM
+"""
+            else:
+                msg = """
+💳 **Plan Free** 
+
+🎯 Beneficios actuales:
+• 1 pick gratis al día
+• Acceso a sistema básico
+
+💎 **Upgrade a Premium:**
+• 5 picks diarios profesionales
+• Sistema de referidos (20%)
+• Filtros ultra-estrictos
+• Solo 15€/semana
+
+📞 Contacta al admin para activar
+"""
+            await update.message.reply_text(msg)
+        
+        # COMANDOS ADMIN
+        elif is_admin:
+            if text == "⚡ Activar Premium":
+                msg = "Para activar premium a un usuario:\n\n`/activar @username`\n\nEjemplo: `/activar @juan123`"
+                await update.message.reply_text(msg)
+            
+            elif text == "💵 Marcar Pago":
+                msg = "Para marcar pago de un usuario:\n\n`/pago @username`\n\nEjemplo: `/pago @juan123`"
+                await update.message.reply_text(msg)
+            
+            elif text == "🔄 Reiniciar Saldo":
+                msg = "Para reiniciar saldo de un usuario:\n\n`/reset_saldo @username`\n\nEjemplo: `/reset_saldo @juan123`"
+                await update.message.reply_text(msg)
+            
+            elif text == "🔁 Reset Alertas":
+                msg = "Para resetear alertas de un usuario:\n\n`/reset_alertas @username`\n\nEjemplo: `/reset_alertas @juan123`"
+                await update.message.reply_text(msg)
+        
+        else:
+            # Mensaje desconocido
+            await update.message.reply_text("No entiendo ese comando. Usa los botones 👇")
+    
+    async def handle_activar_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /activar @username"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) == 0:
+            await update.message.reply_text("Uso: /activar @username")
+            return
+        
+        target_username = context.args[0].replace("@", "")
+        target_user = self.users_manager.get_user_by_username(target_username)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            return
+        
+        target_user.nivel = "premium"
+        target_user.is_permanent_premium = True
+        self.users_manager.save_users()
+        
+        await update.message.reply_text(f"✅ @{target_username} ahora es Premium")
+        logger.info(f"Admin activó premium para @{target_username}")
+    
+    async def handle_marcar_pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /pago @username"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) == 0:
+            await update.message.reply_text("Uso: /pago @username")
+            return
+        
+        target_username = context.args[0].replace("@", "")
+        target_user = self.users_manager.get_user_by_username(target_username)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            return
+        
+        amount = target_user.get_weekly_payment()
+        target_user.accumulated_balance = 0.0
+        self.users_manager.save_users()
+        
+        await update.message.reply_text(f"✅ Pago de {amount:.2f}€ marcado para @{target_username}\n\nSaldo reiniciado a 0€")
+        logger.info(f"Admin marcó pago de {amount:.2f}€ para @{target_username}")
+    
+    async def handle_reset_saldo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /reset_saldo @username"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) == 0:
+            await update.message.reply_text("Uso: /reset_saldo @username")
+            return
+        
+        target_username = context.args[0].replace("@", "")
+        target_user = self.users_manager.get_user_by_username(target_username)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            return
+        
+        target_user.accumulated_balance = 0.0
+        self.users_manager.save_users()
+        
+        await update.message.reply_text(f"✅ Saldo de @{target_username} reiniciado a 0€")
+        logger.info(f"Admin reinició saldo de @{target_username}")
+    
+    async def handle_reset_alertas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /reset_alertas @username"""
+        chat_id = str(update.effective_chat.id)
+        
+        if chat_id != CHAT_ID:
+            await update.message.reply_text("❌ Solo el admin puede usar este comando")
+            return
+        
+        if len(context.args) == 0:
+            await update.message.reply_text("Uso: /reset_alertas @username")
+            return
+        
+        target_username = context.args[0].replace("@", "")
+        target_user = self.users_manager.get_user_by_username(target_username)
+        
+        if not target_user:
+            await update.message.reply_text(f"❌ Usuario @{target_username} no encontrado")
+            return
+        
+        target_user.alerts_sent_today = 0
+        target_user.last_reset_date = datetime.now().strftime("%Y-%m-%d")
+        self.users_manager.save_users()
+        
+        await update.message.reply_text(f"✅ Contador de alertas de @{target_username} reiniciado")
+        logger.info(f"Admin reinició alertas de @{target_username}")
+    
+    def setup_telegram_handlers(self):
+        """Configura los handlers de Telegram para botones y comandos"""
+        if not self.telegram_app:
+            self.telegram_app = Application.builder().token(BOT_TOKEN).build()
+        
+        # Handlers de comandos
+        self.telegram_app.add_handler(CommandHandler("start", self.handle_start))
+        self.telegram_app.add_handler(CommandHandler("activar", self.handle_activar_premium))
+        self.telegram_app.add_handler(CommandHandler("pago", self.handle_marcar_pago))
+        self.telegram_app.add_handler(CommandHandler("reset_saldo", self.handle_reset_saldo))
+        self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))
+        
+        # Handler para mensajes de botones
+        self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
+        
+        logger.info("[OK] Handlers de Telegram configurados")
 
     def is_daily_start_time(self) -> bool:
         """
@@ -826,6 +1135,16 @@ class ValueBotMonitor:
         # API_KEY es opcional (se usarn datos de muestra si no est)
         if not API_KEY:
             logger.warning("No API_KEY - using sample data")
+        
+        # Configurar handlers de Telegram
+        self.setup_telegram_handlers()
+        
+        # Iniciar el bot de Telegram (inicializar y empezar)
+        logger.info("Iniciando bot de Telegram para comandos...")
+        await self.telegram_app.initialize()
+        await self.telegram_app.start()
+        await self.telegram_app.updater.start_polling()
+        logger.info("Bot de Telegram activo")
         
         while True:
             try:
