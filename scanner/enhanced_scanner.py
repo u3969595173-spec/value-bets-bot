@@ -13,30 +13,31 @@ logger = logging.getLogger(__name__)
 
 
 class EnhancedValueScanner(ValueScanner):
-        def adjust_candidate_odds(self, candidate: Dict, all_candidates: List[Dict]) -> Dict:
-            """
-            Si la cuota es >2.1, busca en el mismo partido y mercado una alternativa entre 1.7 y 1.9.
-            Si la encuentra, retorna esa alternativa; si no, retorna el original.
-            """
-            odds = candidate.get('odds', 0)
-            if odds <= 2.1:
-                return candidate
-            # Buscar alternativas en el mismo partido y mercado
-            event_id = candidate.get('id')
-            market_key = candidate.get('market_key')
-            # Buscar en all_candidates (ya escaneados)
-            alternatives = [c for c in all_candidates
-                            if c.get('id') == event_id and c.get('market_key') == market_key
-                            and 1.7 <= c.get('odds', 0) <= 1.9]
-            if alternatives:
-                # Elegir la de mayor valor
-                return max(alternatives, key=lambda x: x.get('value', 0))
-            return candidate
     """Scanner de value bets mejorado con análisis de movimiento de líneas"""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.line_tracker = line_tracker
+    
+    def adjust_candidate_odds(self, candidate: Dict, all_candidates: List[Dict]) -> Dict:
+        """
+        Si la cuota es >2.1, busca en el mismo partido y mercado una alternativa entre 1.7 y 1.9.
+        Si la encuentra, retorna esa alternativa; si no, retorna el original.
+        """
+        odds = candidate.get('odds', 0)
+        if odds <= 2.1:
+            return candidate
+        # Buscar alternativas en el mismo partido y mercado
+        event_id = candidate.get('id')
+        market_key = candidate.get('market_key')
+        # Buscar en all_candidates (ya escaneados)
+        alternatives = [c for c in all_candidates
+                        if c.get('id') == event_id and c.get('market_key') == market_key
+                        and 1.7 <= c.get('odds', 0) <= 1.9]
+        if alternatives:
+            # Elegir la de mayor valor
+            return max(alternatives, key=lambda x: x.get('value', 0))
+        return candidate
     
     def find_value_bets_with_movement(self, events: List[Dict]) -> List[Dict]:
         """
