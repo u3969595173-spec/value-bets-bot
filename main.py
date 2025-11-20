@@ -1874,14 +1874,14 @@ Tu saldo sigue disponible.
                 # Detectar spread arriesgado (favorito con ventaja grande)
                 is_risky_spread = False
                 if market_key == 'spreads' and point is not None and point < 0:
-                    # NHL: spreads < -1.5 son arriesgados
-                    if 'hockey' in sport_key and point < -1.5 and odds > 2.5:
+                    # NHL: spreads <= -1.5 son arriesgados
+                    if 'hockey' in sport_key and point <= -1.5 and odds > 2.5:
                         is_risky_spread = True
-                    # Fútbol: spreads < -2.5 son arriesgados
-                    elif 'soccer' in sport_key and point < -2.5 and odds > 2.5:
+                    # Fútbol: spreads <= -2.5 son arriesgados
+                    elif 'soccer' in sport_key and point <= -2.5 and odds > 2.5:
                         is_risky_spread = True
-                    # NFL: spreads < -6.5 son arriesgados
-                    elif 'americanfootball' in sport_key and point < -6.5 and odds > 2.5:
+                    # NFL: spreads <= -6.5 son arriesgados
+                    elif 'americanfootball' in sport_key and point <= -6.5 and odds > 2.5:
                         is_risky_spread = True
                 
                 # Si es spread arriesgado, buscar alternativa ML del mismo partido
