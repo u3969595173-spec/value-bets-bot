@@ -1367,6 +1367,32 @@ Tu saldo sigue disponible.
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
         
+        # Keep-alive job: ping cada 10 minutos para evitar hibernación en Render
+        async def keep_alive_ping(context):
+            """Auto-ping para mantener el servicio activo en Render free tier"""
+            try:
+                import aiohttp
+                render_url = os.getenv("RENDER_EXTERNAL_URL", "https://value-bets-bot.onrender.com")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(render_url, timeout=10) as response:
+                        if response.status == 200:
+                            logger.info("⏰ Keep-alive ping OK")
+                        else:
+                            logger.warning(f"⚠️ Keep-alive ping: {response.status}")
+            except Exception as e:
+                logger.debug(f"Keep-alive error (normal): {e}")
+        
+        # Programar keep-alive cada 10 minutos
+        job_queue = self.telegram_app.job_queue
+        if job_queue:
+            job_queue.run_repeating(
+                keep_alive_ping,
+                interval=600,  # 10 minutos
+                first=60,      # Primer ping después de 1 minuto
+                name="keep_alive"
+            )
+            logger.info("✅ Keep-alive activado: auto-ping cada 10 minutos")
+        
         logger.info("[OK] Handlers de Telegram configurados")
 
     def is_daily_start_time(self) -> bool:
