@@ -1718,17 +1718,42 @@ Tu saldo sigue disponible.
             # Filtrar solo picks con confianza ≥55 (calidad mínima)
             quality_candidates = [c for c in candidates if c.get('confidence_score', 0) >= 55]
             
-            if not quality_candidates:
-                logger.info(f"📊 {len(candidates)} picks encontrados pero ninguno cumple umbral de confianza ≥55")
+            # FILTRO CONSERVADOR: Bloquear spreads arriesgados (favoritos con ventaja grande)
+            conservative_candidates = []
+            for c in quality_candidates:
+                sport_key = c.get('sport_key', '')
+                market_key = c.get('market_key', '')
+                point = c.get('point', 0)
+                
+                # Solo filtrar spreads negativos (favoritos)
+                if market_key == 'spreads' and point is not None and point < 0:
+                    # NHL: bloquear < -1.5
+                    if 'hockey' in sport_key and point < -1.5:
+                        logger.info(f"❌ Rechazado (NHL spread arriesgado): {c.get('selection')} {point}")
+                        continue
+                    # Fútbol: bloquear < -2.5
+                    elif 'soccer' in sport_key and point < -2.5:
+                        logger.info(f"❌ Rechazado (Soccer spread arriesgado): {c.get('selection')} {point}")
+                        continue
+                    # NFL: bloquear < -6.5
+                    elif 'americanfootball' in sport_key and point < -6.5:
+                        logger.info(f"❌ Rechazado (NFL spread arriesgado): {c.get('selection')} {point}")
+                        continue
+                
+                # Si pasa todos los filtros, agregarlo
+                conservative_candidates.append(c)
+            
+            if not conservative_candidates:
+                logger.info(f"📊 {len(candidates)} picks encontrados pero ninguno cumple criterios conservadores")
                 logger.info(f"⏭️ No se enviará ningún pick. Esperando siguiente check...")
                 return []
             
             # Ordenar por valor (enviar solo el mejor)
-            quality_candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
+            conservative_candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
             
             # Enviar SOLO el mejor pick cada 30 minutos
-            best_pick = quality_candidates[0]
-            logger.info(f"📊 {len(quality_candidates)} picks con confianza ≥55")
+            best_pick = conservative_candidates[0]
+            logger.info(f"📊 {len(conservative_candidates)} picks con confianza ≥55")
             logger.info(f"🎯 Enviando SOLO el mejor pick (valor: {best_pick.get('value', 0):.3f}, confianza: {best_pick.get('confidence_score', 0):.1f})")
             
             return [best_pick]  # Solo el mejor
@@ -1942,12 +1967,12 @@ Tu saldo sigue disponible.
             
             # PASO 1: Buscar cuota de William Hill PRIMERO (casa estándar europea)
             william_hill_odd = None
-            william_hill_bookmaker = None
-            logger.info(f"🔍 Buscando William Hill para {candidate.get('selection')} @ {candidate.get('odds')}")
+            pinnacle_bookmaker = None
+            logger.info(f"🔍 Buscando Pinnacle para {candidate.get('selection')} @ {candidate.get('odds')}")
             if event_bookmakers:
                 for bm in event_bookmakers:
                     bm_name = bm.get('title', '').lower() or bm.get('key', '').lower()
-                    if 'william hill' in bm_name or 'williamhill' in bm_name:
+                    if 'pinnacle' in bm_name:
                         for m in bm.get('markets', []):
                             if m.get('key') == candidate.get('market_key'):
                                 for out in m.get('outcomes', []):
@@ -1957,27 +1982,27 @@ Tu saldo sigue disponible.
                                     if 'point' in candidate and candidate['point'] is not None:
                                         same_point = abs(float(out.get('point', 0)) - float(candidate['point'])) < 0.1
                                     if same_sel and same_point:
-                                        william_hill_odd = float(out.get('price'))
-                                        william_hill_bookmaker = bm.get('title', 'William Hill')
+                                        pinnacle_odd = float(out.get('price'))
+                                        pinnacle_bookmaker = bm.get('title', 'Pinnacle')
                                         break
-                                if william_hill_odd is not None:
+                                if pinnacle_odd is not None:
                                     break
-                        if william_hill_odd is not None:
+                        if pinnacle_odd is not None:
                             break
             
-            # Si encontramos William Hill, actualizar el candidato ANTES de todo
-            if william_hill_odd is not None:
-                logger.info(f"✅ William Hill encontrada: {candidate['selection']} @ {william_hill_odd} (original: @ {candidate['odds']})")
+            # Si encontramos Pinnacle, actualizar el candidato ANTES de todo
+            if pinnacle_odd is not None:
+                logger.info(f"✅ Pinnacle encontrada: {candidate['selection']} @ {pinnacle_odd} (original: @ {candidate['odds']})")
                 candidate['original_odds'] = candidate['odds']
                 candidate['original_bookmaker'] = candidate.get('bookmaker', 'N/A')
-                candidate['odds'] = william_hill_odd
-                candidate['bookmaker'] = william_hill_bookmaker
+                candidate['odds'] = pinnacle_odd
+                candidate['bookmaker'] = pinnacle_bookmaker
                 candidate['was_bet365_adjusted'] = True  # Reutilizamos flag para indicar ajuste a casa estándar
-                # Recalcular value con cuota de William Hill
+                # Recalcular value con cuota de Pinnacle
                 prob = candidate.get('prob', 0)
                 if prob > 0:
-                    candidate['value'] = william_hill_odd * prob
-                    candidate['implied_probability'] = 1.0 / william_hill_odd if william_hill_odd > 0 else 0
+                    candidate['value'] = pinnacle_odd * prob
+                    candidate['implied_probability'] = 1.0 / pinnacle_odd if pinnacle_odd > 0 else 0
             
             # PASO 2: Luego intentar ajustar línea si es necesario
             adjusted = adjust_line_if_needed(candidate, event_bookmakers)
