@@ -75,13 +75,14 @@ API_KEY = os.getenv("API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN") 
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Configuracin de filtros (optimizados para 3-5 picks diarios)
-MIN_ODD = float(os.getenv("MIN_ODD", "1.4"))  # Ampliado de 1.5 a 1.4
-MAX_ODD = float(os.getenv("MAX_ODD", "3.5"))  # Ampliado de 2.5 a 3.5
-MIN_PROB = float(os.getenv("MIN_PROB", "0.52"))  # 52% mínimo
-MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))
-MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "3"))  # Mínimo garantizado
-MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Máximo recomendado
+# Configuracin de filtros (optimizados para exactamente 5 picks premium + 1 gratis)
+MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))  # Cuotas mínimas más estrictas
+MAX_ODD = float(os.getenv("MAX_ODD", "3.0"))  # Cuotas máximas más conservadoras
+MIN_PROB = float(os.getenv("MIN_PROB", "0.55"))  # 55% mínimo para mayor precisión
+MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))  # Exactamente 5 para premium
+MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "5"))  # Garantizar siempre 5
+MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Exactamente 5 picks
+FREE_PICKS_PER_DAY = int(os.getenv("FREE_PICKS_PER_DAY", "1"))  # 1 pick para usuarios gratis
 
 # Deportes a monitorear
 SPORTS = os.getenv("SPORTS", "basketball_nba,soccer_epl,soccer_spain_la_liga,tennis_atp,tennis_wta,baseball_mlb").split(",")
@@ -535,9 +536,9 @@ class ValueBotMonitor:
         
         total_alerts_sent = 0
         
-        # 1. USUARIOS PREMIUM: reciben 3-5 picks (todos los value_candidates hasta MAX)
-        premium_picks = value_candidates[:MAX_DAILY_PICKS]
-        logger.info(f"📤 Enviando {len(premium_picks)} picks a usuarios premium")
+        # 1. USUARIOS PREMIUM: reciben exactamente 5 picks (los mejores ordenados por value)
+        premium_picks = value_candidates[:5]  # Siempre 5 picks para premium
+        logger.info(f"📤 Enviando exactamente {len(premium_picks)} picks a usuarios premium")
         
         for candidate in premium_picks:
             # Verificar si ya enviamos esta alerta
@@ -546,8 +547,8 @@ class ValueBotMonitor:
             alerts_sent_for_candidate = 0
             
             for user in premium_users:
-                # Verificar límites
-                if not user.can_send_alert():
+                # Verificar límites (premium puede recibir hasta 5 al día)
+                if user.alerts_sent_today >= 5:
                     continue
                 
                 # Verificar duplicados
@@ -567,15 +568,15 @@ class ValueBotMonitor:
                 if alerts_sent_for_candidate >= len(premium_users):
                     break
         
-        # 2. USUARIOS GRATIS: reciben solo EL MEJOR pick (máximo 1 al día)
+        # 2. USUARIOS GRATIS: reciben SOLO 1 pick (el de MAYOR value de los 5)
         if free_users and value_candidates:
-            best_pick = value_candidates[0]  # El mejor ordenado por EV
-            logger.info(f"🎁 Enviando 1 pick (mejor EV) a {len(free_users)} usuarios gratis")
+            best_pick = value_candidates[0]  # El #1 con mayor EV
+            logger.info(f"🎁 Enviando 1 pick GRATIS (máximo value) a {len(free_users)} usuarios gratis")
             
             best_pick_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
             
             for user in free_users:
-                # Verificar límites (usuarios gratis: máximo 1 al día)
+                # Usuarios gratis: MÁXIMO 1 al día
                 if user.alerts_sent_today >= 1:
                     continue
                 
