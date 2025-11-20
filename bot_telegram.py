@@ -898,34 +898,34 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             stats = performance_tracker.get_global_stats(days=30)
             
             stats_text = (
-                "📊 *ESTADÍSTICAS DEL BOT* (Últimos 30 días)\n"
+                "📊 ESTADÍSTICAS DEL BOT (Últimos 30 días)\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📈 *RENDIMIENTO GLOBAL:*\n"
+                f"📈 RENDIMIENTO GLOBAL:\n"
                 f"  Total pronósticos: {stats['total_predictions']}\n"
                 f"  ✅ Aciertos: {stats['won']}\n"
                 f"  ❌ Fallos: {stats['lost']}\n"
                 f"  ⏳ Pendientes: {stats['pending']}\n\n"
-                f"🎯 *EFECTIVIDAD:*\n"
-                f"  Win Rate: {stats['win_rate']}%\n"
+                f"🎯 EFECTIVIDAD:\n"
+                f"  Win Rate: {stats['win_rate']:.1f}%\n"
                 f"  ROI: {stats['roi']:+.1f}%\n\n"
-                f"💰 *FINANCIERO:*\n"
+                f"💰 FINANCIERO:\n"
                 f"  Stake total: ${stats['total_stake']:.2f}\n"
                 f"  Ganancia/Pérdida: ${stats['total_profit']:+.2f}\n\n"
-                f"📊 *ANÁLISIS:*\n"
+                f"📊 ANÁLISIS:\n"
                 f"  Cuota promedio: {stats['avg_odd']:.2f}\n"
                 f"  Mejor deporte: {stats['best_sport']}\n\n"
             )
             
             if stats['win_rate'] >= 55:
-                stats_text += "✅ *Rendimiento EXCELENTE*\n"
+                stats_text += "✅ Rendimiento EXCELENTE\n"
             elif stats['win_rate'] >= 50:
-                stats_text += "📊 *Rendimiento BUENO*\n"
+                stats_text += "📊 Rendimiento BUENO\n"
             else:
-                stats_text += "⚠️ *Optimizando modelo*\n"
+                stats_text += "⚠️ Optimizando modelo\n"
             
             stats_text += "\n💡 Resultados verificados automáticamente"
             
-            await query.edit_message_text(stats_text, parse_mode='Markdown')
+            await query.edit_message_text(stats_text)
             
         except Exception as e:
             logger.error(f"Error mostrando estadísticas: {e}")
