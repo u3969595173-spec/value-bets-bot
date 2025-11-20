@@ -80,8 +80,8 @@ MIN_ODD = float(os.getenv("MIN_ODD", "1.5"))  # Cuotas mínimas más estrictas
 MAX_ODD = float(os.getenv("MAX_ODD", "3.0"))  # Cuotas máximas más conservadoras
 MIN_PROB = float(os.getenv("MIN_PROB", "0.58"))  # 58% mínimo ultra-profesional
 MAX_ALERTS_PER_DAY = int(os.getenv("MAX_ALERTS_PER_DAY", "5"))  # Exactamente 5 para premium
-MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "5"))  # Garantizar siempre 5
-MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Exactamente 5 picks
+MIN_DAILY_PICKS = int(os.getenv("MIN_DAILY_PICKS", "3"))  # Mínimo garantizado: 3
+MAX_DAILY_PICKS = int(os.getenv("MAX_DAILY_PICKS", "5"))  # Máximo: 5 picks
 FREE_PICKS_PER_DAY = int(os.getenv("FREE_PICKS_PER_DAY", "1"))  # 1 pick para usuarios gratis
 
 # Configuración ultra-profesional (reduce fallos)
@@ -398,39 +398,78 @@ class ValueBotMonitor:
                         f"(prob: {prob:.1f}%, value: {value:.3f})"
                     )
             
-            # Sistema de selección de picks: garantizar MIN_DAILY_PICKS a MAX_DAILY_PICKS
+            # Sistema de selección de picks: garantizar MIN_DAILY_PICKS (3) a MAX_DAILY_PICKS (5)
             if len(candidates) < MIN_DAILY_PICKS:
-                logger.warning(f"⚠️  Solo {len(candidates)} picks encontrados, mínimo requerido: {MIN_DAILY_PICKS}")
-                logger.info("🔧 Ajustando filtros dinámicamente para alcanzar mínimo...")
+                logger.warning(f"⚠️  Solo {len(candidates)} picks con filtros ultra-profesionales")
+                logger.info(f"🔧 RELAJACIÓN PROGRESIVA para alcanzar mínimo {MIN_DAILY_PICKS}...")
                 
-                # Intentar con filtros más relajados
-                relaxed_scanner = EnhancedValueScanner(
-                    min_odd=1.3,  # Más bajo
-                    max_odd=4.0,  # Más alto
-                    min_prob=0.48  # Más bajo (48%)
-                ) if ENHANCED_SYSTEM_AVAILABLE else ValueScanner(
-                    min_odd=1.3,
-                    max_odd=4.0,
-                    min_prob=0.48
-                )
+                # NIVEL 1: Relajar confidence a 50 (mantener line movement)
+                if len(candidates) < MIN_DAILY_PICKS:
+                    logger.info("📊 Nivel 1: Relajando confidence a 50...")
+                    relaxed_candidates = self.scanner.find_value_bets_with_movement(events) if ENHANCED_SYSTEM_AVAILABLE else self.scanner.find_value_bets(events)
+                    
+                    # Filtrar con confidence 50 (en vez de 60)
+                    level1_candidates = [c for c in relaxed_candidates if c.get('confidence_score', 0) >= 50]
+                    if REQUIRE_LINE_MOVEMENT:
+                        level1_candidates = [c for c in level1_candidates if c.get('line_movement') is not None]
+                    
+                    logger.info(f"   Resultado Nivel 1: {len(level1_candidates)} picks")
+                    candidates.extend([c for c in level1_candidates if c not in candidates])
                 
-                if ENHANCED_SYSTEM_AVAILABLE and isinstance(relaxed_scanner, EnhancedValueScanner):
-                    relaxed_candidates = relaxed_scanner.find_value_bets_with_movement(events)
-                else:
-                    relaxed_candidates = relaxed_scanner.find_value_bets(events)
+                # NIVEL 2: Relajar line movement (opcional en vez de obligatorio)
+                if len(candidates) < MIN_DAILY_PICKS:
+                    logger.info("📊 Nivel 2: Line movement opcional...")
+                    relaxed_scanner = EnhancedValueScanner(
+                        min_odd=1.5,
+                        max_odd=3.0,
+                        min_prob=0.55  # Mantener 55%
+                    ) if ENHANCED_SYSTEM_AVAILABLE else ValueScanner(
+                        min_odd=1.5,
+                        max_odd=3.0,
+                        min_prob=0.55
+                    )
+                    
+                    if ENHANCED_SYSTEM_AVAILABLE:
+                        level2_candidates = relaxed_scanner.find_value_bets_with_movement(events)
+                    else:
+                        level2_candidates = relaxed_scanner.find_value_bets(events)
+                    
+                    # Filtrar solo por confidence >=50 y value >=1.10
+                    level2_candidates = [c for c in level2_candidates 
+                                       if c.get('confidence_score', 0) >= 50 
+                                       and c.get('value', 0) >= 1.10]
+                    
+                    logger.info(f"   Resultado Nivel 2: {len(level2_candidates)} picks")
+                    candidates.extend([c for c in level2_candidates if c not in candidates])
                 
-                logger.info(f"📈 Con filtros relajados: {len(relaxed_candidates)} candidatos")
+                # NIVEL 3: Filtros básicos (si aún falta)
+                if len(candidates) < MIN_DAILY_PICKS:
+                    logger.info("📊 Nivel 3: Filtros básicos profesionales...")
+                    basic_scanner = ValueScanner(
+                        min_odd=1.4,
+                        max_odd=3.5,
+                        min_prob=0.52  # 52% mínimo
+                    )
+                    level3_candidates = basic_scanner.find_value_bets(events)
+                    
+                    # Solo añadir los mejores por EV
+                    for c in level3_candidates:
+                        c['expected_value'] = (c.get('prob', 0) * c.get('odds', 0)) - 1
+                    
+                    level3_candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
+                    logger.info(f"   Resultado Nivel 3: {len(level3_candidates)} picks")
+                    candidates.extend([c for c in level3_candidates[:10] if c not in candidates])
                 
-                # Usar los relajados si hay más
-                if len(relaxed_candidates) >= MIN_DAILY_PICKS:
-                    candidates = relaxed_candidates
-                    logger.info(f"✅ Usando {len(candidates)} picks con filtros ajustados")
-                else:
-                    # Mantener todos los disponibles
-                    logger.warning(f"⚠️  Aún insuficientes. Usando todos: {len(relaxed_candidates)}")
-                    candidates = relaxed_candidates if len(relaxed_candidates) > len(candidates) else candidates
+                logger.info(f"✅ Total después de relajación: {len(candidates)} picks")
                 
+                # Ordenar todos por EV y tomar los mejores
+                for c in candidates:
+                    if 'expected_value' not in c:
+                        c['expected_value'] = (c.get('prob', 0) * c.get('odds', 0)) - 1
+                
+                candidates.sort(key=lambda x: x.get('expected_value', 0), reverse=True)
                 selected_candidates = candidates[:MAX_DAILY_PICKS]
+                
             elif len(candidates) > MAX_DAILY_PICKS:
                 logger.info(f"📈 {len(candidates)} picks disponibles, seleccionando top {MAX_DAILY_PICKS} por EV")
                 # Calcular EV real para cada candidato
