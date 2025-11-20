@@ -1706,23 +1706,23 @@ Tu saldo sigue disponible.
             for candidate in candidates:
                 candidate['min_confidence_used'] = min_confidence_adaptive
             
-            # En vez de forzar 5 picks, enviar los que cumplan el umbral de calidad
-            # Ordenar por confianza y valor
-            candidates.sort(key=lambda x: (x.get('confidence_score', 0), x.get('value', 0)), reverse=True)
+            # Filtrar solo picks con confianza ≥55 (calidad mínima)
+            quality_candidates = [c for c in candidates if c.get('confidence_score', 0) >= 55]
             
-            # Filtrar solo los que cumplan el umbral de confianza adaptado
-            quality_candidates = [c for c in candidates if c.get('confidence_score', 0) >= min_confidence_adaptive]
+            if not quality_candidates:
+                logger.info(f"📊 {len(candidates)} picks encontrados pero ninguno cumple umbral de confianza ≥55")
+                logger.info(f"⏭️ No se enviará ningún pick. Esperando siguiente check...")
+                return []
             
-            logger.info(f"📊 {len(candidates)} picks encontrados, {len(quality_candidates)} cumplen umbral de confianza {min_confidence_adaptive}")
-            logger.info(f"✅ Enviando {len(quality_candidates)} picks de calidad (sin forzar cantidad)")
+            # Ordenar por valor (enviar solo el mejor)
+            quality_candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
             
-            # El pick de mayor valor va para usuarios free
-            if quality_candidates:
-                logger.info(f"🎯 Pick #1 (mayor valor {quality_candidates[0].get('value', 0):.3f}) → Usuarios FREE")
-                if len(quality_candidates) > 1:
-                    logger.info(f"💎 Picks #2-{len(quality_candidates)} → Usuarios PREMIUM")
+            # Enviar SOLO el mejor pick cada 30 minutos
+            best_pick = quality_candidates[0]
+            logger.info(f"📊 {len(quality_candidates)} picks con confianza ≥55")
+            logger.info(f"🎯 Enviando SOLO el mejor pick (valor: {best_pick.get('value', 0):.3f}, confianza: {best_pick.get('confidence_score', 0):.1f})")
             
-            return quality_candidates
+            return [best_pick]  # Solo el mejor
             
         except Exception as e:
             logger.error(f"Ã¢ÂÅ’ Error finding value opportunities: {e}")
@@ -1923,61 +1923,50 @@ Tu saldo sigue disponible.
         
         total_alerts_sent = 0
         
-        # Enviar picks de calidad conforme se encuentran (sin forzar cantidad)
-        # Ordenados por confianza y valor
-        logger.info(f"📤 Enviando {len(value_candidates)} picks de calidad encontrados")
+        # Enviar solo el mejor pick encontrado (confianza ≥55)
+        if not value_candidates:
+            logger.info("⏭️ No hay picks de calidad para enviar")
+            return 0
         
-        # 1. USUARIOS PREMIUM: reciben los picks de calidad encontrados
-        for candidate in value_candidates:
-            # Verificar si ya enviamos esta alerta
-            candidate_key = f"{candidate.get('id', '')}_{candidate.get('selection', '')}"
-            
-            alerts_sent_for_candidate = 0
-            
-            for user in premium_users:
-                # Verificar límites (premium puede recibir hasta 5 al día)
-                if user.alerts_sent_today >= 5:
-                    continue
-                
-                # Verificar duplicados
-                alert_key = f"{user.chat_id}_{candidate_key}"
-                if alert_key in self.sent_alerts:
-                    continue
-                
-                # Enviar alerta
-                success = await self.send_alert_to_user(user, candidate)
-                logger.info(f"DEBUG: send_alert_to_user returned: {success}")
-                if success:
-                    alerts_sent_for_candidate += 1
-                    total_alerts_sent += 1
-                    logger.info(f"DEBUG: Incremented counters - candidate: {alerts_sent_for_candidate}, total: {total_alerts_sent}")
-                
-                # Limitar alertas por candidato (evitar spam)
-                if alerts_sent_for_candidate >= len(premium_users):
-                    break
+        best_pick = value_candidates[0]  # Solo el mejor
+        logger.info(f"📤 Enviando mejor pick: {best_pick.get('selection')} @ {best_pick.get('odds')} (valor: {best_pick.get('value', 0):.3f})")
         
-        # 2. USUARIOS GRATIS: reciben SOLO 1 pick (el de MAYOR valor)
-        if free_users and value_candidates:
-            best_pick = value_candidates[0]  # El #1 con mayor valor
-            logger.info(f"🎁 Enviando 1 pick GRATIS (máximo valor) a {len(free_users)} usuarios gratis")
+        # Verificar si ya enviamos esta alerta
+        candidate_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
+        
+        # 1. Enviar a PREMIUM users
+        for user in premium_users:
+            # Verificar límites (premium puede recibir hasta 5 al día)
+            if user.alerts_sent_today >= 5:
+                continue
+            
+            # Verificar duplicados
+            alert_key = f"{user.chat_id}_{candidate_key}"
+            if alert_key in self.sent_alerts:
+                continue
+            
+            # Enviar alerta
+            success = await self.send_alert_to_user(user, best_pick)
+            if success:
+                total_alerts_sent += 1
+        
+        # 2. Enviar a FREE users (mismo pick, máximo 1 al día)
+        for user in free_users:
+            # Usuarios gratis: MÁXIMO 1 al día
+            if user.alerts_sent_today >= 1:
+                continue
             
             best_pick_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
             
-            for user in free_users:
-                # Usuarios gratis: MÁXIMO 1 al día
-                if user.alerts_sent_today >= 1:
-                    continue
-                
-                # Verificar duplicados
-                alert_key = f"{user.chat_id}_{best_pick_key}"
-                if alert_key in self.sent_alerts:
-                    continue
-                
-                # Enviar alerta
-                success = await self.send_alert_to_user(user, best_pick)
-                if success:
-                    total_alerts_sent += 1
-                    logger.info(f"✅ Pick gratis enviado a usuario {user.chat_id}")
+            # Verificar duplicados
+            alert_key = f"{user.chat_id}_{best_pick_key}"
+            if alert_key in self.sent_alerts:
+                continue
+            
+            # Enviar alerta
+            success = await self.send_alert_to_user(user, best_pick)
+            if success:
+                total_alerts_sent += 1
         
         logger.info(f"✅ Total alerts sent: {total_alerts_sent}")
         return total_alerts_sent
