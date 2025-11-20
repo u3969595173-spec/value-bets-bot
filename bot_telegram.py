@@ -1255,9 +1255,6 @@ async def main_async():
                 drop_pending_updates=True
             )
             
-            # Importar aquí para evitar error si no está disponible
-            from telegram.ext import WebhookHandler
-            
             # El servidor HTTP de run_render.py manejará las requests
             # Solo necesitamos mantener la aplicación viva
             logger.info("✅ Bot de comandos en modo WEBHOOK")

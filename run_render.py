@@ -38,14 +38,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length)
             update_data = json.loads(body.decode('utf-8'))
             
-            # Procesar el update de Telegram
+            # Procesar el update de Telegram de forma sync (lo maneja el bot internamente)
             if telegram_app:
-                # Crear tarea async para procesar el update
                 from telegram import Update
                 update = Update.de_json(update_data, telegram_app.bot)
                 
-                # Procesar el update en el event loop
-                asyncio.create_task(telegram_app.process_update(update))
+                # Programar procesamiento async en el loop principal
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(telegram_app.process_update(update))
             
             self.send_response(200)
             self.end_headers()
@@ -54,6 +54,12 @@ class WebhookHandler(BaseHTTPRequestHandler):
             print(f"[WEBHOOK] Error procesando update: {e}")
             self.send_response(500)
             self.end_headers()
+    
+    def do_HEAD(self):
+        """Manejar HEAD requests de health checks"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
     
     def log_message(self, format, *args):
         # Suprimir logs HTTP rutinarios
