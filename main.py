@@ -301,12 +301,12 @@ class ValueBotMonitor:
 👋 Hola {display_name}
 
 📊 **Sistema Activo:**
-• Monitoreo cada 30 minutos
-• 4 deportes profesionales
-• Filtros ultra-estrictos (58%+ prob)
-• Máximo 5 picks premium al día
+• Monitoreo cada 90 minutos
+• Deportes profesionales
+• Filtros ultra-estrictos (55%+ confianza)
+• 1 pick del MEJOR de cada deporte
 
-💎 **Tu Estado:** {'Premium ✅' if user.is_premium_active() else 'Free (1 pick/día)'}
+💎 **Tu Estado:** {'Premium ✅ (Ilimitado)' if user.is_premium_active() else 'Free (1 pick/día)'}
 
 👇 Usa los botones para navegar:
 """
@@ -338,7 +338,7 @@ class ValueBotMonitor:
 
 👤 Usuario: @{user.username}
 💎 Estado: {'Premium ✅' if user.is_premium_active() else 'Free'}
-📅 Alertas hoy: {user.alerts_sent_today}/{MAX_ALERTS_PER_DAY if user.is_premium_active() else FREE_PICKS_PER_DAY}
+📅 Alertas hoy: {user.alerts_sent_today}/{'Ilimitado' if user.is_premium_active() else FREE_PICKS_PER_DAY}
 
 ━━━━━━━━━━━━━━━━━━━━━
 📈 **HISTÓRICO TOTAL**
@@ -509,7 +509,7 @@ Copia el link arriba y envíalo por WhatsApp, redes, etc.
 
 📊 **Actividad:**
 • Alertas recibidas hoy: {user.alerts_sent_today}
-• Límite diario: {MAX_ALERTS_PER_DAY if user.is_premium_active() else FREE_PICKS_PER_DAY}
+• Límite diario: {'Ilimitado 🚀' if user.is_premium_active() else FREE_PICKS_PER_DAY}
 
 💰 **Finanzas:**
 • Balance: {user.accumulated_balance:.2f}€
@@ -711,7 +711,8 @@ Tu solicitud de retiro ha sido enviada al admin.
 💳 **Estado Premium Activo** ✅
 
 🎯 Beneficios activos:
-• 5 picks premium al día
+• Picks ilimitados al día 🚀
+• 1 pick del MEJOR de cada deporte
 • Filtros ultra-profesionales
 • Alertas prioritarias
 • Sistema de referidos 10%
@@ -732,7 +733,8 @@ Tu solicitud de retiro ha sido enviada al admin.
 • Acceso a sistema básico
 
 💎 **Upgrade a Premium:**
-• 5 picks diarios profesionales
+• Picks ILIMITADOS diarios 🚀
+• 1 pick del MEJOR de cada deporte
 • Sistema de referidos (10%)
 • Filtros ultra-estrictos
 • Solo 15€/semana
@@ -2332,50 +2334,66 @@ Tu saldo sigue disponible.
         
         total_alerts_sent = 0
         
-        # Enviar solo el mejor pick encontrado (confianza ≥55)
+        # NUEVA LÓGICA: Agrupar picks por deporte y enviar el MEJOR de cada uno
         if not value_candidates:
             logger.info("⏭️ No hay picks de calidad para enviar")
             return 0
         
-        best_pick = value_candidates[0]  # Solo el mejor
-        logger.info(f"📤 Enviando mejor pick: {best_pick.get('selection')} @ {best_pick.get('odds')} (valor: {best_pick.get('value', 0):.3f})")
+        # Agrupar candidatos por deporte
+        picks_by_sport = {}
+        for candidate in value_candidates:
+            sport = candidate.get('sport_key', 'unknown')
+            if sport not in picks_by_sport:
+                picks_by_sport[sport] = []
+            picks_by_sport[sport].append(candidate)
         
-        # Verificar si ya enviamos esta alerta
-        candidate_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
+        # De cada deporte, seleccionar el MEJOR (mayor value)
+        best_picks_per_sport = []
+        for sport, candidates in picks_by_sport.items():
+            # Ordenar por value (descendente)
+            candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
+            best_pick = candidates[0]
+            best_picks_per_sport.append(best_pick)
+            logger.info(f"🎯 {sport}: Mejor pick = {best_pick.get('selection')} @ {best_pick.get('odds')} (value: {best_pick.get('value', 0):.3f})")
         
-        # 1. Enviar a PREMIUM users
-        for user in premium_users:
-            # Verificar límites (premium puede recibir hasta 5 al día)
-            if user.alerts_sent_today >= 5:
-                continue
-            
-            # Verificar duplicados
-            alert_key = f"{user.chat_id}_{candidate_key}"
-            if alert_key in self.sent_alerts:
-                continue
-            
-            # Enviar alerta
-            success = await self.send_alert_to_user(user, best_pick)
-            if success:
-                total_alerts_sent += 1
+        logger.info(f"📤 Enviando {len(best_picks_per_sport)} picks (1 por deporte)")
         
-        # 2. Enviar a FREE users (mismo pick, máximo 1 al día)
-        for user in free_users:
-            # Usuarios gratis: MÁXIMO 1 al día
-            if user.alerts_sent_today >= 1:
-                continue
+        # Enviar picks a usuarios PREMIUM (sin límite diario)
+        for pick in best_picks_per_sport:
+            candidate_key = f"{pick.get('id', '')}_{pick.get('selection', '')}"
             
-            best_pick_key = f"{best_pick.get('id', '')}_{best_pick.get('selection', '')}"
+            for user in premium_users:
+                # Verificar duplicados (no límite de cantidad para premium)
+                alert_key = f"{user.chat_id}_{candidate_key}"
+                if alert_key in self.sent_alerts:
+                    continue
+                
+                # Enviar alerta
+                success = await self.send_alert_to_user(user, pick)
+                if success:
+                    total_alerts_sent += 1
+        
+        # Enviar SOLO el mejor pick global a usuarios FREE (1 al día)
+        if best_picks_per_sport:
+            # Ordenar todos los picks por value y tomar el mejor absoluto
+            best_picks_per_sport.sort(key=lambda x: x.get('value', 0), reverse=True)
+            best_global_pick = best_picks_per_sport[0]
+            best_pick_key = f"{best_global_pick.get('id', '')}_{best_global_pick.get('selection', '')}"
             
-            # Verificar duplicados
-            alert_key = f"{user.chat_id}_{best_pick_key}"
-            if alert_key in self.sent_alerts:
-                continue
-            
-            # Enviar alerta
-            success = await self.send_alert_to_user(user, best_pick)
-            if success:
-                total_alerts_sent += 1
+            for user in free_users:
+                # Usuarios gratis: MÁXIMO 1 al día
+                if user.alerts_sent_today >= 1:
+                    continue
+                
+                # Verificar duplicados
+                alert_key = f"{user.chat_id}_{best_pick_key}"
+                if alert_key in self.sent_alerts:
+                    continue
+                
+                # Enviar alerta
+                success = await self.send_alert_to_user(user, best_global_pick)
+                if success:
+                    total_alerts_sent += 1
         
         logger.info(f"✅ Total alerts sent: {total_alerts_sent}")
         return total_alerts_sent
