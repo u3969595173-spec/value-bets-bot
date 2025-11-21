@@ -146,6 +146,7 @@ class ValueBotMonitor:
         # Tracking de eventos monitoreados
         self.monitored_events: Dict[str, Dict] = {}  # event_id -> event_data
         self.sent_alerts: Set[str] = set()  # Para evitar duplicados
+        self.MAX_MONITORED_EVENTS = 500  # Límite para prevenir memory leaks
         
         # Application de Telegram para handlers de botones
         self.telegram_app = None
@@ -2727,6 +2728,24 @@ Tu saldo sigue disponible.
         
         # Procesar alertas para eventos inminentes
         alerts_sent = await self.process_alerts_for_imminent_events()
+        
+        # MEMORY CLEANUP: Limitar eventos y forzar garbage collection
+        import gc
+        if len(self.monitored_events) > self.MAX_MONITORED_EVENTS:
+            sorted_events = sorted(
+                self.monitored_events.items(),
+                key=lambda x: x[1].get('commence_time', datetime.min.replace(tzinfo=timezone.utc)),
+                reverse=True
+            )
+            self.monitored_events = dict(sorted_events[:self.MAX_MONITORED_EVENTS])
+            logger.info(f"🧹 Memory: trimmed to {self.MAX_MONITORED_EVENTS} events")
+        
+        # Limpiar alertas antiguas (mantener solo últimas 100)
+        if len(self.sent_alerts) > 100:
+            self.sent_alerts = set(list(self.sent_alerts)[-100:])
+        
+        # Forzar garbage collection
+        gc.collect()
         
         # Log resumen
         imminent_count = len(self.get_events_starting_soon(ALERT_WINDOW_HOURS))
