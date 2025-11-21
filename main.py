@@ -396,9 +396,16 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
                 for ref_id in user.referred_users[:10]:
                     ref_user = self.users_manager.get_user(ref_id)
                     if ref_user:
-                        status = "💎" if ref_user.is_premium_active() else "👤"
-                        refs_list += f"{status} @{ref_user.username}\n"
-            else:
+                        # Solo mostrar si tiene username válido
+                        if ref_user.username and ref_user.username != 'None':
+                            status = "💎" if ref_user.is_premium_active() else "👤"
+                            refs_list += f"{status} @{ref_user.username}\n"
+                        else:
+                            # Mostrar ID si no tiene username
+                            status = "💎" if ref_user.is_premium_active() else "👤"
+                            refs_list += f"{status} Usuario ID: {ref_user.chat_id}\n"
+            
+            if not refs_list:
                 refs_list = "Ninguno aún"
             
             # Ganancias de referidos esta semana
