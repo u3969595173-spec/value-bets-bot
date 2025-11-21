@@ -2690,6 +2690,15 @@ Tu saldo sigue disponible.
                     logger.info(f"   💰 User {alert['user_id']}: {result.upper()} @ {odds:.2f} → {profit_loss:+.2f}€ (Bank: {old_bank:.2f} → {user.dynamic_bank:.2f})")
                     if alert.get('was_adjusted'):
                         logger.info(f"      🔧 Resultado basado en línea ajustada (no original)")
+                    
+                    # Actualizar status de la apuesta en bet_history
+                    for bet in user.bet_history:
+                        if bet.get('event_id') == alert['event_id'] and bet.get('status') == 'pending':
+                            bet['status'] = result  # 'won', 'lost', 'push'
+                            bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
+                            bet['profit_loss'] = profit_loss
+                            logger.info(f"   📝 Apuesta actualizada en historial: {result}")
+                            break
                 
                 # Notificar resultado
                 try:
