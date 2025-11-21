@@ -1949,12 +1949,19 @@ Tu saldo sigue disponible.
                 logger.info(f"⏭️ No se enviará ningún pick. Esperando siguiente check...")
                 return []
             
+            # FILTRAR: Solo picks con odds razonables (≤2.6) antes de ordenar
+            reasonable_candidates = [c for c in conservative_candidates if c.get('odds', 0) <= 2.6]
+            
+            if not reasonable_candidates:
+                logger.warning(f"⚠️ {len(conservative_candidates)} picks convertidos pero todos tienen odds >2.6")
+                return []
+            
             # Ordenar por valor (enviar solo el mejor)
-            conservative_candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
+            reasonable_candidates.sort(key=lambda x: x.get('value', 0), reverse=True)
             
             # Enviar SOLO el mejor pick cada 30 minutos
-            best_pick = conservative_candidates[0]
-            logger.info(f"📊 {len(conservative_candidates)} picks con confianza ≥55")
+            best_pick = reasonable_candidates[0]
+            logger.info(f"📊 {len(reasonable_candidates)} picks con confianza ≥55 y odds ≤2.6")
             logger.info(f"🎯 Enviando SOLO el mejor pick (valor: {best_pick.get('value', 0):.3f}, confianza: {best_pick.get('confidence_score', 0):.1f})")
             
             return [best_pick]  # Solo el mejor
