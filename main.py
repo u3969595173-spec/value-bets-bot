@@ -2166,8 +2166,8 @@ Tu saldo sigue disponible.
         for candidate in value_candidates:
             event_bookmakers = candidate.get('event_bookmakers', [])
             
-            # PASO 1: Buscar cuota de William Hill PRIMERO (casa estándar europea)
-            william_hill_odd = None
+            # PASO 1: Buscar cuota de Pinnacle PRIMERO
+            pinnacle_odd = None
             pinnacle_bookmaker = None
             logger.info(f"🔍 Buscando Pinnacle para {candidate.get('selection')} @ {candidate.get('odds')}")
             if event_bookmakers:
