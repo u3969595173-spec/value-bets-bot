@@ -588,8 +588,10 @@ class User:
         }
     
     def get_weekly_payment(self) -> float:
-        """Retorna el pago base semanal (15€). El balance de referidos es aparte."""
-        return PREMIUM_PRICE_EUR  # 15€
+        """Calcula el pago total semanal: 15€ base + 20% de ganancias referidos."""
+        base = PREMIUM_PRICE_EUR  # 15€
+        referral_bonus = self.accumulated_balance  # 20% de ganancias de referidos
+        return base + referral_bonus
     
     def get_stats(self):
         """Retorna estadísticas del usuario premium."""

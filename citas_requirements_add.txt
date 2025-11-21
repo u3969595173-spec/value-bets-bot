@@ -1,9 +1,0 @@
-# Dependencias adicionales para CitasBot - Auto-llenado automático
-# Agregar estas líneas al requirements.txt de CitasBot
-
-# Web automation
-playwright>=1.40.0
-playwright-stealth>=1.0.2
-
-# Manejo de imágenes para capturas
-Pillow>=10.0.0
