@@ -1929,9 +1929,13 @@ Tu saldo sigue disponible.
                             
                             # Recalcular value con las nuevas odds de ML manteniendo la probabilidad original
                             original_prob = c.get('prob', 0)
+                            original_value = c.get('value', 0)
                             if original_prob > 0:
                                 ml_alternative['value'] = best_ml_odds * original_prob
                                 ml_alternative['implied_probability'] = 1.0 / best_ml_odds if best_ml_odds > 0 else 0
+                                logger.info(f"📊 Recalculando value: prob={original_prob:.3f}, odds={best_ml_odds}, new_value={ml_alternative['value']:.3f} (original: {original_value:.3f})")
+                            else:
+                                logger.warning(f"⚠️ No hay probabilidad original para recalcular value")
                     
                     if ml_alternative:
                         logger.info(f"🔄 Spread arriesgado detectado: {team_name} {point} @ {odds}")
