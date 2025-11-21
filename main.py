@@ -211,6 +211,21 @@ class ValueBotMonitor:
         referrer_id = None
         if context.args and len(context.args) > 0:
             referral_code = context.args[0]
+            
+            # VALIDAR: Si viene con código de referido, DEBE tener username
+            if not username:
+                await update.message.reply_text(
+                    "⚠️ <b>Username requerido</b>\n\n"
+                    "Para usar el sistema de referidos necesitas configurar un @username en Telegram\n\n"
+                    "📱 <b>Cómo configurarlo:</b>\n"
+                    "1. Ve a Ajustes de Telegram\n"
+                    "2. Toca en 'Editar Perfil'\n"
+                    "3. Configura tu Username\n\n"
+                    "Una vez configurado, vuelve a usar el link de referido 🔗",
+                    parse_mode='HTML'
+                )
+                return
+            
             # CORREGIDO: Buscar referrer por REFERRAL_CODE (no por chat_id)
             referrer = self.users_manager.find_user_by_referral_code(referral_code)
             if referrer:
