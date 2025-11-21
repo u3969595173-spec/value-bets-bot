@@ -1927,13 +1927,17 @@ Tu saldo sigue disponible.
                             ml_alternative['original_point'] = point
                             ml_alternative['original_odds'] = odds
                             
-                            # Recalcular value con las nuevas odds de ML manteniendo la probabilidad original
+                            # Recalcular value AUMENTANDO la probabilidad para ML (más fácil que spread)
                             original_prob = c.get('prob', 0)
                             original_value = c.get('value', 0)
                             if original_prob > 0:
-                                ml_alternative['value'] = best_ml_odds * original_prob
+                                # ML es más fácil que spread: aumentar prob en ~12-15% (ej: 52% → 64%)
+                                # Factor conservador: si gana con -1.5 en 52%, gana ML en ~64%
+                                adjusted_prob = min(original_prob + 0.12, 0.70)  # Cap en 70% por seguridad
+                                ml_alternative['prob'] = adjusted_prob
+                                ml_alternative['value'] = best_ml_odds * adjusted_prob
                                 ml_alternative['implied_probability'] = 1.0 / best_ml_odds if best_ml_odds > 0 else 0
-                                logger.info(f"📊 Recalculando value: prob={original_prob:.3f}, odds={best_ml_odds}, new_value={ml_alternative['value']:.3f} (original: {original_value:.3f})")
+                                logger.info(f"📊 Recalculando value: prob_spread={original_prob:.3f}, prob_ML={adjusted_prob:.3f}, odds={best_ml_odds}, new_value={ml_alternative['value']:.3f} (original: {original_value:.3f})")
                             else:
                                 logger.warning(f"⚠️ No hay probabilidad original para recalcular value")
                     
