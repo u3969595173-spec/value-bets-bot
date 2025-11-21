@@ -1908,9 +1908,9 @@ Tu saldo sigue disponible.
                                         outcome_name = outcome.get('name', '')
                                         outcome_odds = outcome.get('price', 0)
                                         
-                                        # Mismo equipo y odds en rango seguro (1.8-2.4)
+                                        # Mismo equipo y odds en rango seguro (1.5-2.1 = ML full-time)
                                         if outcome_name.strip().lower() == team_name.strip().lower():
-                                            if 1.8 <= outcome_odds <= 2.4:
+                                            if 1.5 <= outcome_odds <= 2.1:
                                                 if best_ml_odds is None or outcome_odds > best_ml_odds:
                                                     best_ml_odds = outcome_odds
                                                     best_ml_bookmaker = bookmaker.get('title', bookmaker.get('key'))
@@ -1932,7 +1932,7 @@ Tu saldo sigue disponible.
                         logger.info(f"✅ Cambiando a ML: {team_name} @ {ml_alternative.get('odds')} en {ml_alternative.get('bookmaker')} (más seguro)")
                         conservative_candidates.append(ml_alternative)
                     else:
-                        logger.info(f"❌ Spread arriesgado sin alternativa ML válida (1.8-2.4): {team_name} {point} @ {odds}")
+                        logger.info(f"❌ Spread arriesgado sin alternativa ML válida (1.5-2.1): {team_name} {point} @ {odds}")
                         # No agregar, saltarlo
                 else:
                     # Pick normal, agregarlo
