@@ -55,7 +55,7 @@ def adjust_line_if_needed(candidate: Dict, event_bookmakers: List[Dict], use_rel
         adjusted['was_adjusted'] = True
         adjusted['original_odds'] = original_odds
         adjusted['original_point'] = original_point
-        adjusted['adjustment_reason'] = f"Cuota original {original_odds:.2f} > {MAX_ODD_THRESHOLD}"
+        adjusted['adjustment_reason'] = f"Cuota original {original_odds:.2f} > {threshold}"
         
         logger.info(
             f"✅ Línea ajustada: {adjusted.get('selection')} "
