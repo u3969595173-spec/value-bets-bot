@@ -101,8 +101,8 @@ SPAIN_TZ = ZoneInfo("Europe/Madrid")
 ALERT_SEND_HOUR_START = 14  # 2 PM España
 ALERT_SEND_HOUR_END = 22     # 10 PM España
 
-# Deportes a monitorear (OPTIMIZADO: 17 deportes con revisión cada 90 min)
-SPORTS = os.getenv("SPORTS", "basketball_nba,basketball_euroleague,basketball_spain_acb,basketball_france_lnb,basketball_germany_bbl,basketball_italy_lega_a,soccer_epl,soccer_spain_la_liga,soccer_germany_bundesliga,soccer_italy_serie_a,soccer_france_ligue_one,soccer_uefa_champs_league,soccer_uefa_europa_league,soccer_efl_champ,soccer_spain_la_liga2,icehockey_nhl,americanfootball_nfl").split(",")
+# Deportes a monitorear (OPTIMIZADO: 16 deportes con revisión cada 90 min, SIN NHL)
+SPORTS = os.getenv("SPORTS", "basketball_nba,basketball_euroleague,basketball_spain_acb,basketball_france_lnb,basketball_germany_bbl,basketball_italy_lega_a,soccer_epl,soccer_spain_la_liga,soccer_germany_bundesliga,soccer_italy_serie_a,soccer_france_ligue_one,soccer_uefa_champs_league,soccer_uefa_europa_league,soccer_efl_champ,soccer_spain_la_liga2,americanfootball_nfl").split(",")
 
 # Configuración de tiempo (OPTIMIZADO para durar API credits)
 EUROPE_TZ = ZoneInfo("Europe/Madrid")  # Hora de España
