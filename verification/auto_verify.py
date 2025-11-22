@@ -79,6 +79,11 @@ class AutoVerifier:
                                     else:
                                         stats['incorrect'] += 1
                                     stats['total_profit'] += verified['profit_loss']
+                                    
+                                    # NUEVO: Actualizar estadísticas del usuario
+                                    user_id = pred.get('user_id')
+                                    if user_id:
+                                        self._update_user_stats(user_id, pred, verified)
                         
                         # Rate limiting: esperar entre requests
                         await asyncio.sleep(1)
@@ -298,6 +303,61 @@ class AutoVerifier:
         except Exception as e:
             logger.error(f"Error obteniendo resumen: {e}")
             return {'error': str(e)}
+
+    def _update_user_stats(self, user_id: str, prediction: Dict, verified_result: Dict):
+        """
+        Actualiza estadísticas del usuario en users.json después de verificar pick
+        
+        Args:
+            user_id: ID del usuario
+            prediction: Predicción original
+            verified_result: Resultado de verificación con was_correct y profit_loss
+        """
+        try:
+            from data.users import get_users_manager
+            
+            users_manager = get_users_manager()
+            user = users_manager.get_user(user_id)
+            
+            if not user:
+                logger.warning(f"Usuario {user_id} no encontrado para actualizar stats")
+                return
+            
+            # Actualizar total_bets
+            user.total_bets += 1
+            
+            # Actualizar won_bets si ganó
+            if verified_result['was_correct']:
+                user.won_bets += 1
+            
+            # Actualizar total_profit
+            user.total_profit += verified_result['profit_loss']
+            
+            # Actualizar bankroll dinámico
+            user.bankroll += verified_result['profit_loss']
+            
+            # Actualizar bet en bet_history si existe
+            event_id = prediction.get('event_id')
+            if event_id and hasattr(user, 'bet_history') and user.bet_history:
+                for bet in user.bet_history:
+                    if bet.get('event_id') == event_id and bet.get('status') == 'pending':
+                        bet['status'] = 'won' if verified_result['was_correct'] else 'lost'
+                        bet['profit'] = verified_result['profit_loss']
+                        bet['home_score'] = verified_result.get('home_score')
+                        bet['away_score'] = verified_result.get('away_score')
+                        bet['verified_at'] = datetime.now(timezone.utc).isoformat()
+                        break
+            
+            # Guardar cambios
+            users_manager.save()
+            
+            logger.info(f"✅ Stats actualizadas para usuario {user_id}: "
+                       f"{user.won_bets}/{user.total_bets} ganadas, "
+                       f"profit: ${user.total_profit:+.2f}, "
+                       f"bankroll: ${user.bankroll:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Error actualizando stats de usuario {user_id}: {e}")
 
 
 async def run_verification_cycle():

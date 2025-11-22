@@ -2084,12 +2084,26 @@ Tu saldo sigue disponible.
             
             # Registrar alerta enviada
             user.record_alert_sent()
+            
+            # NUEVO: Registrar bet en historial del usuario
+            bet_data = {
+                'event_id': candidate.get('id', ''),
+                'sport': candidate.get('sport_key', ''),
+                'selection': candidate.get('selection', ''),
+                'odds': candidate.get('odds', odds),
+                'stake': stake,
+                'market': candidate.get('market', 'h2h'),
+                'point': candidate.get('point'),
+                'date': datetime.now(timezone.utc).isoformat(),
+                'commence_time': candidate.get('commence_time'),
+                'status': 'pending',  # pending, won, lost
+                'profit': None  # Se actualiza cuando se verifica
+            }
+            user.record_bet(bet_data)
             self.users_manager.save()
-            
+
             # Registrar alerta en el tracker para verificación posterior
-            tracker = get_alerts_tracker()
-            
-            # Usar línea y cuota ajustadas si existen
+            tracker = get_alerts_tracker()            # Usar línea y cuota ajustadas si existen
             final_odds = candidate.get('odds', odds)
             final_point = candidate.get('point')
             final_selection = candidate.get('selection', '')
