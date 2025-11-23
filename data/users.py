@@ -27,9 +27,9 @@ except ImportError:
     supabase = None
 
 
-# Configuración de límites - SISTEMA PREMIUM EXCLUSIVO
-ALERTS_FREE = 0  # Free users: sin alertas
-ALERTS_PREMIUM = 5  # Premium users: máximo 5 alertas de calidad por día
+# Configuración de límites - SISTEMA PREMIUM ILIMITADO
+ALERTS_FREE = 1  # Free users: 1 pick diario
+ALERTS_PREMIUM = 999999  # Premium users: ILIMITADO
 
 # Configuración de bankroll (para premium)
 DEFAULT_BANKROLL = float(os.getenv("DEFAULT_BANKROLL", "1000.0"))
@@ -391,12 +391,12 @@ class User:
         if str(self.chat_id) == str(ADMIN_ID):
             return True
         
-        # NUEVO SISTEMA: Solo usuarios premium reciben alertas
+        # SISTEMA ACTUALIZADO: Premium ilimitado, Gratis 1 pick/día
         if self.is_premium_active():
-            return self.alerts_sent_today < ALERTS_PREMIUM  # Máximo 5 de calidad
+            return True  # Premium: ILIMITADO
         else:  
-            # Usuarios gratuitos NO reciben alertas, solo pueden suscribirse
-            return False
+            # Usuarios gratuitos: máximo 1 pick diario
+            return self.alerts_sent_today < ALERTS_FREE
     
     def record_alert_sent(self):
         """Registra que se envió una alerta."""
@@ -409,7 +409,7 @@ class User:
         if str(self.chat_id) == str(ADMIN_ID):
             return 999  # Sin límite para admin
         
-        return ALERTS_PREMIUM if self.is_premium_active() else 0  # Solo premium recibe alertas
+        return 999999 if self.is_premium_active() else ALERTS_FREE  # Premium ilimitado, gratis 1/día
     
     def get_remaining_alerts(self) -> int:
         """Retorna cuántas alertas puede recibir hoy."""
