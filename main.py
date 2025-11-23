@@ -2143,7 +2143,8 @@ Tu saldo sigue disponible.
                         'odds': odds,
                         'predicted_prob': prob,
                         'value_score': candidate.get('value', 0.0),
-                        'stake': stake
+                        'stake': stake,
+                        'user_id': user.chat_id
                     }
                     pred_id = historical_db.save_prediction(prediction)
                     if pred_id:
