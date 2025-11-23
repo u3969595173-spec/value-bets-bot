@@ -310,8 +310,8 @@ class HistoricalDatabase:
             cursor.execute('''
                 INSERT INTO predictions
                 (match_id, sport_key, selection, odds, predicted_prob,
-                 value_score, stake, predicted_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 value_score, stake, user_id, predicted_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 prediction['match_id'],
@@ -321,6 +321,7 @@ class HistoricalDatabase:
                 prediction['predicted_prob'],
                 prediction['value_score'],
                 prediction.get('stake'),
+                prediction.get('user_id'),
                 now
             ))
             
