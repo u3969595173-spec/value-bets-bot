@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from data.odds_api import OddsFetcher
 from scanner.scanner import ValueScanner, USING_ENHANCED_MODEL
 from notifier.telegram import TelegramNotifier
+from referrals.referral_system import ReferralSystem, format_referral_stats
 from data.users import get_users_manager, User
 from data.state import AlertsState
 from notifier.alert_formatter import format_premium_alert
@@ -141,6 +142,7 @@ class ValueBotMonitor:
         
         self.notifier = TelegramNotifier(BOT_TOKEN)
         self.users_manager = get_users_manager()
+        self.referral_system = ReferralSystem("data/referrals.json")
         self.alerts_state = AlertsState("data/alerts_state.json", MAX_ALERTS_PER_DAY)
         
         # Tracking de eventos monitoreados
@@ -811,6 +813,18 @@ Tu solicitud de retiro ha sido enviada al admin.
             if referrer:
                 # Procesar pago de referido: 10% de 15€ = 1.50€
                 payment_result = referrer.add_paid_referral(15.0)
+                
+                # NUEVO: Procesar en ReferralSystem para tracking completo
+                try:
+                    referral_result = self.referral_system.process_premium_payment(
+                        user_id=target_user.chat_id,
+                        amount_usd=15.0,
+                        payment_method="admin_activation"
+                    )
+                    if referral_result['success']:
+                        logger.info(f"✅ Comisión registrada en ReferralSystem: {referral_result}")
+                except Exception as e:
+                    logger.error(f"Error procesando comisión en ReferralSystem: {e}")
                 
                 commission_msg = f"\n\n💰 Comisión pagada a @{referrer.username}: {payment_result['commission']:.2f}€"
                 
@@ -1529,6 +1543,104 @@ Tu saldo sigue disponible.
             await update.message.reply_text(f"❌ Error limpiando usuarios: {e}")
             logger.error(f"Error en limpiar_usuarios: {e}")
     
+    async def handle_referidos(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /referidos - Muestra estadísticas de referidos"""
+        user_id = str(update.effective_user.id)
+        
+        stats = self.referral_system.get_user_stats(user_id)
+        
+        if not stats:
+            await update.message.reply_text(
+                "No estás registrado en el sistema de referidos.\n"
+                "Usa /start para registrarte."
+            )
+            return
+        
+        # Formatear estadísticas
+        stats_text = format_referral_stats(stats)
+        
+        await update.message.reply_text(stats_text)
+    
+    async def handle_canjear(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /canjear - Canjea una semana Premium gratis"""
+        user_id = str(update.effective_user.id)
+        
+        # Intentar canjear
+        success, message = self.referral_system.redeem_free_week(user_id)
+        
+        if success:
+            # Activar Premium por 1 semana
+            try:
+                user = self.users_manager.get_user(user_id)
+                if user:
+                    user.add_free_premium_week()
+                    self.users_manager.save()
+                    
+                    message += "\n\n✅ Tu suscripción Premium ha sido extendida por 7 días!"
+                    
+                    logger.info(f"Usuario {user_id} canjeó semana Premium gratis")
+            except Exception as e:
+                logger.error(f"Error activando Premium para {user_id}: {e}")
+                message += "\n\n❌ Error activando Premium. Contacta al administrador."
+        
+        await update.message.reply_text(message)
+    
+    async def handle_retirar(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para /retirar [monto] - Solicita retiro de saldo"""
+        user_id = str(update.effective_user.id)
+        
+        # Validar argumentos
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text(
+                "Uso: /retirar [monto]\n\n"
+                "Ejemplo: /retirar 25.50\n\n"
+                "Tu saldo será verificado y el retiro procesado por el administrador."
+            )
+            return
+        
+        # Parsear monto
+        try:
+            amount = float(context.args[0])
+        except ValueError:
+            await update.message.reply_text(
+                "Monto inválido. Usa números con punto decimal.\n"
+                "Ejemplo: /retirar 25.50"
+            )
+            return
+        
+        # Verificar monto mínimo
+        if amount < 5.0:
+            await update.message.reply_text(
+                "El monto mínimo de retiro es $5.00 USD"
+            )
+            return
+        
+        # Solicitar retiro
+        success, message = self.referral_system.withdraw_balance(user_id, amount)
+        
+        if success:
+            # Notificar al admin
+            try:
+                admin_message = (
+                    f"💰 SOLICITUD DE RETIRO\n\n"
+                    f"Usuario: {user_id}\n"
+                    f"Monto: ${amount:.2f} USD\n"
+                    f"Fecha: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    f"Usa /aprobar_retiro {user_id} {amount} para aprobar"
+                )
+                await self.notifier.send_message(CHAT_ID, admin_message)
+                
+                message += (
+                    "\n\nEl administrador procesará tu solicitud en las próximas 24-48 horas.\n"
+                    "Métodos de pago: PayPal, Transferencia, Criptomonedas."
+                )
+                
+                logger.info(f"Solicitud de retiro de {user_id}: ${amount:.2f}")
+            except Exception as e:
+                logger.error(f"Error notificando retiro al admin: {e}")
+        
+        await update.message.reply_text(message)
+    
     def setup_telegram_handlers(self):
         """Configura los handlers de Telegram para botones y comandos"""
         if not self.telegram_app:
@@ -1540,6 +1652,11 @@ Tu saldo sigue disponible.
         self.telegram_app.add_handler(CommandHandler("pagar_referido", self.handle_pagar_referido))
         self.telegram_app.add_handler(CommandHandler("pago", self.handle_marcar_pago))
         self.telegram_app.add_handler(CommandHandler("reset_saldo", self.handle_reset_saldo))
+        
+        # Comandos de referidos
+        self.telegram_app.add_handler(CommandHandler("referidos", self.handle_referidos))
+        self.telegram_app.add_handler(CommandHandler("canjear", self.handle_canjear))
+        self.telegram_app.add_handler(CommandHandler("retirar", self.handle_retirar))
         self.telegram_app.add_handler(CommandHandler("reset_alertas", self.handle_reset_alertas))
         self.telegram_app.add_handler(CommandHandler("lista_premium", self.handle_lista_premium))
         self.telegram_app.add_handler(CommandHandler("stats_reales", self.handle_stats_reales))
