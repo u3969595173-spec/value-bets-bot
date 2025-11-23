@@ -310,6 +310,8 @@ class ValueBotMonitor:
 
 💎 **Tu Estado:** {'Premium ✅ (Ilimitado)' if user.is_premium_active() else 'Free (1 pick/día)'}
 
+📞 **Soporte/Pagos:** +34 936 07 56 41
+
 👇 Usa los botones para navegar:
 """
         await update.message.reply_text(welcome_msg, reply_markup=keyboard)
@@ -428,6 +430,8 @@ Cambio: {user.dynamic_bank - 200:+.2f}€ ({(user.dynamic_bank - 200) / 200 * 10
 
 🔗 <b>Tu link personal:</b>
 <code>{referral_link}</code>
+
+📞 <b>Soporte/Pagos:</b> +34 936 07 56 41
 
 👥 <b>Tus referidos:</b>
 • Total: {total_refs}
@@ -741,7 +745,7 @@ Tu solicitud de retiro ha sido enviada al admin.
 • Filtros ultra-estrictos
 • Solo 15€/semana
 
-📞 Contacta al admin para activar
+📞 Contacta: +34 936 07 56 41 (WhatsApp)
 """
             await update.message.reply_text(msg)
         
@@ -1558,6 +1562,7 @@ Tu saldo sigue disponible.
         
         # Formatear estadísticas
         stats_text = format_referral_stats(stats)
+        stats_text += "\n\n📞 Soporte/Pagos: +34 936 07 56 41"
         
         await update.message.reply_text(stats_text)
     
@@ -1632,7 +1637,8 @@ Tu saldo sigue disponible.
                 
                 message += (
                     "\n\nEl administrador procesará tu solicitud en las próximas 24-48 horas.\n"
-                    "Métodos de pago: PayPal, Transferencia, Criptomonedas."
+                    "Métodos de pago: PayPal, Transferencia, Criptomonedas.\n\n"
+                    "📞 Soporte: +34 936 07 56 41 (WhatsApp)"
                 )
                 
                 logger.info(f"Solicitud de retiro de {user_id}: ${amount:.2f}")
