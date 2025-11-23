@@ -381,6 +381,8 @@ class User:
     
     def can_send_alert(self) -> bool:
         """Verifica si el usuario puede recibir más alertas hoy - SOLO PREMIUM."""
+        # IMPORTANTE: Siempre resetear primero, incluso para usuarios gratis
+        # Esto mantiene last_reset_date actualizado
         self._check_reset()
         self._check_premium_expiration()  # Verificar si premium expiró
         
