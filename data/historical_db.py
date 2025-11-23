@@ -175,6 +175,7 @@ class HistoricalDatabase:
                 'predicted_prob': float(prediction['predicted_prob']),
                 'value_score': float(prediction['value_score']),
                 'stake': float(prediction.get('stake', 0)),
+                'user_id': prediction.get('user_id'),
                 'predicted_at': now
             }
             
