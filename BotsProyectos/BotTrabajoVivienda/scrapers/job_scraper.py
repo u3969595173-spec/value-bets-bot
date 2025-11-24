@@ -19,12 +19,15 @@ class JobScraper:
     def get_headers(self):
         """Headers para evitar bloqueos"""
         return {
-            'User-Agent': self.ua.random,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none'
         }
     
     def scrape_indeed(self, keywords, location="España", max_results=20):
@@ -452,7 +455,7 @@ class JobScraper:
             params = {'search': keywords, 'location': location}
             
             logger.info(f"🔍 Scraping Turijobs: {keywords}")
-            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=20)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, 'html.parser')
@@ -681,7 +684,7 @@ class JobScraper:
         all_jobs = []
         
         scrapers = [
-            ('Indeed', lambda: self.scrape_indeed(keywords, location, max_per_source)),
+            # ('Indeed', lambda: self.scrape_indeed(keywords, location, max_per_source)),  # Bloqueado 403
             ('InfoJobs', lambda: self.scrape_infojobs(keywords, location, max_per_source)),
             ('Milanuncios', lambda: self.scrape_milanuncios(keywords, location, max_per_source)),
             ('InfoEmpleo', lambda: self.scrape_infoempleo(keywords, location, max_per_source)),
@@ -691,7 +694,7 @@ class JobScraper:
             ('Turijobs', lambda: self.scrape_turijobs(keywords, location, max_per_source)),
             ('Monster', lambda: self.scrape_monster(keywords, location, max_per_source)),
             ('Jooble', lambda: self.scrape_jooble(keywords, location, max_per_source)),
-            ('JobToday', lambda: self.scrape_jobtoday(keywords, location, max_per_source)),
+            # ('JobToday', lambda: self.scrape_jobtoday(keywords, location, max_per_source)),  # Bloqueado 403
         ]
         
         for name, scraper_func in scrapers:
@@ -734,7 +737,7 @@ class JobScraper:
                 if has_keyword and location_match:
                     unique_jobs.append(job)
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 11 fuentes")
+        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 9 fuentes")
         
         return unique_jobs
 
