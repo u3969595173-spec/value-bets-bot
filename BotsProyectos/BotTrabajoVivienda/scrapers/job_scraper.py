@@ -237,7 +237,7 @@ class JobScraper:
                     company = company_elem.get_text(strip=True) if company_elem else "No especificada"
                     
                     location_elem = item.find('span', class_=re.compile(r'location'))
-                    job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                    job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                     
                     salary_elem = item.find('span', class_=re.compile(r'salary'))
                     salary = salary_elem.get_text(strip=True) if salary_elem else None
@@ -356,7 +356,7 @@ class JobScraper:
                         
                         # Extraer ubicación real del HTML
                         location_elem = card.find(['span', 'div', 'p'], class_=re.compile(r'location|ciudad|provincia|lugar'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -407,7 +407,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = item.find(['span', 'div', 'p'], class_=re.compile(r'location|ciudad|provincia'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -459,7 +459,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -510,7 +510,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = listing.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -562,7 +562,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -613,7 +613,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location|lugar'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -664,7 +664,7 @@ class JobScraper:
                         
                         # Extraer ubicación real
                         location_elem = item.find(['span', 'div'], class_=re.compile(r'location|city'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -792,7 +792,7 @@ class JobScraper:
                             url = 'https://www.cornerjob.com' + url
                         
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -847,7 +847,7 @@ class JobScraper:
                             url = 'https://www.randstad.es' + url
                         
                         location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -897,7 +897,7 @@ class JobScraper:
                             url = 'https://www.adecco.es' + url
                         
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -947,7 +947,7 @@ class JobScraper:
                             url = 'https://www.manpower.es' + url
                         
                         location_elem = listing.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -997,7 +997,7 @@ class JobScraper:
                             url = 'https://www.empleofacil.es' + url
                         
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -1047,7 +1047,7 @@ class JobScraper:
                             url = 'https://www.opcionempleo.com' + url
                         
                         location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -1097,7 +1097,7 @@ class JobScraper:
                             url = 'https://es.jobrapido.com' + url
                         
                         location_elem = listing.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -1147,7 +1147,7 @@ class JobScraper:
                             url = 'https://www.domestiko.com' + url
                         
                         location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -1197,7 +1197,7 @@ class JobScraper:
                             url = 'https://www.jobatus.es' + url
                         
                         location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         if url:
                             jobs.append({
@@ -1316,3 +1316,4 @@ def search_jobs(keywords, location="España", max_results=50):
     """Función helper para buscar trabajos en TODAS las fuentes"""
     scraper = JobScraper()
     return scraper.scrape_all(keywords, location, max_results // 10)
+
