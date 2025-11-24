@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Configuración
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-ADMIN_ID = int(os.getenv('ADMIN_ID', '0'))  # Tu Telegram ID
+ADMIN_ID = int(os.getenv('ADMIN_ID', '5901833301'))  # Tu Telegram ID
 
 
 class VidaNuevaBot:
