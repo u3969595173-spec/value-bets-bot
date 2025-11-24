@@ -1678,17 +1678,27 @@ Tu saldo sigue disponible.
         self.telegram_app.add_handler(CommandHandler("limpiar_usuarios", self.handle_limpiar_usuarios))
         
         # NUEVO: Comandos de verificación manual y estadísticas mejoradas
-        from commands.verification_commands import (
-            cmd_pendientes, cmd_stats_pro, 
-            handle_verification_callback, show_full_history_callback, back_to_stats_callback
-        )
-        from telegram.ext import CallbackQueryHandler
-        
-        self.telegram_app.add_handler(CommandHandler("pendientes", cmd_pendientes))
-        self.telegram_app.add_handler(CommandHandler("stats_pro", cmd_stats_pro))
-        self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
-        self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
-        self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
+        try:
+            logger.info("🔄 Importando comandos de verificación...")
+            from commands.verification_commands import (
+                cmd_pendientes, cmd_stats_pro, 
+                handle_verification_callback, show_full_history_callback, back_to_stats_callback
+            )
+            from telegram.ext import CallbackQueryHandler
+            
+            logger.info("✅ Registrando /pendientes...")
+            self.telegram_app.add_handler(CommandHandler("pendientes", cmd_pendientes))
+            logger.info("✅ Registrando /stats_pro...")
+            self.telegram_app.add_handler(CommandHandler("stats_pro", cmd_stats_pro))
+            logger.info("✅ Registrando handlers de callbacks...")
+            self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
+            self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
+            self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
+            logger.info("✅ Comandos de verificación registrados correctamente")
+        except ImportError as e:
+            logger.error(f"❌ Error importando verification_commands: {e}")
+        except Exception as e:
+            logger.error(f"❌ Error registrando comandos de verificación: {e}")
         
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
