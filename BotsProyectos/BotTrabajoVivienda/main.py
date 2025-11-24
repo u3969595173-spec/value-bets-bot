@@ -807,8 +807,6 @@ class VidaNuevaBot:
             
             # Aplicar filtros adicionales si hay (salario, contrato, experiencia) solo a exact_jobs
             if (min_salary or contract_type or experience is not None) and exact_jobs:
-            # Aplicar filtros adicionales si hay (salario, contrato, experiencia) solo a exact_jobs
-            if (min_salary or contract_type or experience is not None) and exact_jobs:
                 filtered_jobs = []
                 for job in exact_jobs:
                     # Filtrar por salario
