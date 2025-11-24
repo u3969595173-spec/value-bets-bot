@@ -675,15 +675,30 @@ class JobScraper:
                 logger.error(f"Error en {name}: {e}")
                 continue
         
-        # Eliminar duplicados por URL
+        # Eliminar duplicados por URL y filtrar por relevancia
         seen_urls = set()
         unique_jobs = []
+        keywords_lower = keywords.lower().split()
+        location_lower = location.lower()
+        
         for job in all_jobs:
             if job['url'] not in seen_urls:
                 seen_urls.add(job['url'])
-                unique_jobs.append(job)
+                
+                # Filtrar por palabras clave (debe contener al menos una)
+                job_text = (job['title'] + ' ' + job.get('description', '')).lower()
+                has_keyword = any(keyword in job_text for keyword in keywords_lower)
+                
+                # Filtrar por ubicación (si no es "España" genérica)
+                location_match = True
+                if location_lower not in ['españa', 'spain', 'nacional']:
+                    job_location = job['location'].lower()
+                    location_match = location_lower in job_location or 'remoto' in job_location or 'teletrabajo' in job_location
+                
+                if has_keyword and location_match:
+                    unique_jobs.append(job)
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos de {len(all_jobs)} encontrados desde 11 fuentes")
+        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 11 fuentes")
         
         return unique_jobs
 

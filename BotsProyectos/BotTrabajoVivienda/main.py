@@ -19,7 +19,8 @@ from telegram.ext import (
 from database import (
     init_database, get_or_create_user, save_search, get_user_searches, 
     save_jobs, search_jobs_db, save_housing, search_housing_db, get_all_searches,
-    activate_user, deactivate_user, get_all_users, get_user_stats
+    activate_user, deactivate_user, get_all_users, get_user_stats,
+    toggle_search_status, delete_user_searches
 )
 from scrapers.job_scraper import search_jobs
 from scrapers.housing_scraper import search_housing
@@ -60,7 +61,8 @@ class VidaNuevaBot:
         # Teclado personalizado
         keyboard = [
             [KeyboardButton("💼 Buscar Trabajo"), KeyboardButton("🏠 Buscar Vivienda")],
-            [KeyboardButton("⚙️ Mis Búsquedas"), KeyboardButton("ℹ️ Ayuda")]
+            [KeyboardButton("⚙️ Mis Búsquedas"), KeyboardButton("💳 Pago")],
+            [KeyboardButton("ℹ️ Ayuda")]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -71,8 +73,15 @@ class VidaNuevaBot:
             "💼 **Trabajo** - 11 portales de empleo\n"
             "🏠 **Vivienda** - 6 portales inmobiliarios\n\n"
             "Todo en tiempo real.\n\n"
-            "💎 **Suscripción: 10€/mes**\n\n"
-            "📞 **Soporte/Pagos:** +34 936 07 56 41 (WhatsApp)\n\n"
+            "💎 **UN SOLO PAGO: 10€/mes**\n"
+            "Acceso completo a trabajo Y vivienda\n\n"
+            "⚠️ **IMPORTANTE:**\n"
+            "Debes PAGAR antes de ser activado.\n"
+            "Sin pago no podrás usar el bot.\n\n"
+            "📞 **Escribe al WhatsApp para PAGAR:**\n"
+            "+34 936 07 56 41\n\n"
+            f"🆔 Tu ID: `{user.id}`\n"
+            "Proporciona este ID al escribir.\n\n"
             "Selecciona una opción:"
         )
         
@@ -87,13 +96,15 @@ class VidaNuevaBot:
         
         if not user_data.get('is_premium', False):
             await update.message.reply_text(
-                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
-                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
-                "💎 **10€/mes** - Acceso completo\n\n"
-                "📞 **Contacta para activar:**\n"
-                "+34 936 07 56 41 (WhatsApp)\n\n"
-                f"🆔 Tu ID: `{user_id}`\n"
-                "Proporciona este ID al hacer el pago.",
+                "🔒 **PAGO REQUERIDO**\n\n"
+                "⚠️ Debes PAGAR primero para usar el bot.\n\n"
+                "💎 **UN SOLO PAGO: 10€/mes**\n"
+                "Acceso completo a trabajo Y vivienda\n\n"
+                "📞 **Escribe al WhatsApp para PAGAR:**\n"
+                "+34 936 07 56 41\n\n"
+                f"🆔 **Tu ID:** `{user_id}`\n"
+                "Envía este ID cuando escribas.\n\n"
+                "✅ Serás activado manualmente tras verificar tu pago.",
                 parse_mode='Markdown'
             )
             return ConversationHandler.END
@@ -188,13 +199,14 @@ class VidaNuevaBot:
         
         if not user_data.get('is_premium', False):
             await update.message.reply_text(
-                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
-                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
-                "💎 **10€/mes** - Acceso completo\n\n"
-                "📞 **Contacta para activar:**\n"
-                "+34 936 07 56 41 (WhatsApp)\n\n"
-                f"🆔 Tu ID: `{user_id}`\n"
-                "Proporciona este ID al hacer el pago.",
+                "🔒 **PAGO REQUERIDO**\n\n"
+                "⚠️ Debes PAGAR primero para usar el bot.\n\n"
+                "💎 **Precio: 10€/mes**\n\n"
+                "📞 **Escribe al WhatsApp para PAGAR:**\n"
+                "+34 936 07 56 41\n\n"
+                f"🆔 **Tu ID:** `{user_id}`\n"
+                "Envía este ID cuando escribas.\n\n"
+                "✅ Serás activado inmediatamente tras confirmar el pago.",
                 parse_mode='Markdown'
             )
             return ConversationHandler.END
@@ -305,31 +317,87 @@ class VidaNuevaBot:
         return ConversationHandler.END
     
     async def mis_busquedas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Comando para ver búsquedas guardadas"""
+        """Comando para ver búsquedas guardadas con botones para gestionar alertas"""
         user_id = update.effective_user.id
         
         # Obtener búsquedas de la base de datos
         searches = get_user_searches(user_id)
         
         if searches:
-            msg = "⚙️ **TUS BÚSQUEDAS ACTIVAS:**\n\n"
+            msg = "⚙️ **TUS BÚSQUEDAS:**\n\n"
+            
+            keyboard = []
             for i, search in enumerate(searches, 1):
                 tipo = "💼 Trabajo" if search['search_type'] == 'trabajo' else "🏠 Vivienda"
+                status = "🔔 ON" if search['is_active'] else "🔕 OFF"
                 msg += f"{i}. {tipo}: {search['keywords']}\n"
                 if search['location']:
                     msg += f"   📍 {search['location']}\n"
-                msg += "\n"
+                msg += f"   Alertas: {status}\n\n"
+                
+                # Botones para cada búsqueda
+                if search['is_active']:
+                    keyboard.append([InlineKeyboardButton(
+                        f"🔕 Desactivar #{i}",
+                        callback_data=f"toggle_search_{search['id']}_off"
+                    )])
+                else:
+                    keyboard.append([InlineKeyboardButton(
+                        f"🔔 Activar #{i}",
+                        callback_data=f"toggle_search_{search['id']}_on"
+                    )])
+            
+            # Botón para eliminar todas
+            keyboard.append([InlineKeyboardButton(
+                "🗑️ Eliminar todas",
+                callback_data="delete_all_searches"
+            )])
             
             msg += f"\n📊 Total: {len(searches)} búsquedas\n"
-            msg += "\n💡 Recibirás alertas cuando encuentre nuevas ofertas."
+            msg += "\n💡 **Alertas automáticas:**\n"
+            msg += "🔔 ON = Revisa cada hora y te avisa\n"
+            msg += "🔕 OFF = No busca automáticamente"
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
         else:
             msg = (
                 "⚙️ **MIS BÚSQUEDAS**\n\n"
                 "Aún no tienes búsquedas guardadas.\n\n"
-                "Cuando crees una búsqueda, te enviaré alertas automáticas "
-                "cada vez que aparezca una nueva oferta.\n\n"
-                "💎 **Suscripción:** 10€/mes - Búsquedas ilimitadas"
+                "📋 **Para empezar:**\n"
+                "1. Usa '💼 Buscar Trabajo' o '🏠 Buscar Vivienda'\n"
+                "2. Guarda tus búsquedas\n"
+                "3. Activa alertas automáticas (cada hora)\n\n"
+                "💎 **UN SOLO PAGO: 10€/mes**\n"
+                "Acceso a trabajo Y vivienda\n\n"
+                "📞 **Escribe al WhatsApp:** +34 936 07 56 41\n\n"
+                "💡 Usa '💳 Pago' para más información."
             )
+            await update.message.reply_text(msg, parse_mode='Markdown')
+    
+    async def pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Comando /pago - Información de pago"""
+        user_id = update.effective_user.id
+        
+        msg = (
+            "💳 **INFORMACIÓN DE PAGO**\n\n"
+            "⚠️ **IMPORTANTE:**\n"
+            "Debes PAGAR antes de usar el bot.\n"
+            "Sin pago confirmado, no podrás buscar.\n\n"
+            "💎 **Precio: 10€/mes**\n\n"
+            "📞 **Escribe al WhatsApp para PAGAR:**\n"
+            "+34 936 07 56 41\n\n"
+            f"🆔 **Tu ID:** `{user_id}`\n"
+            "⚠️ Proporciona este ID al escribir\n\n"
+            "📋 **Proceso:**\n"
+            "1. Escribe al WhatsApp\n"
+            "2. Envía tu ID de usuario\n"
+            "3. Te diremos cómo pagar\n"
+            "4. Confirmas el pago\n"
+            "5. Eres activado inmediatamente\n\n"
+            "🔄 **Renovación:**\n"
+            "Mensual - Te avisaremos por WhatsApp."
+        )
         
         await update.message.reply_text(msg, parse_mode='Markdown')
     
@@ -337,20 +405,54 @@ class VidaNuevaBot:
         """Comando /help"""
         msg = (
             "ℹ️ **CÓMO FUNCIONA**\n\n"
-            "1️⃣ Selecciona qué buscas (trabajo o vivienda)\n"
-            "2️⃣ Escribe tu búsqueda: `trabajo: camarero, Madrid`\n"
-            "3️⃣ Yo escaneo múltiples plataformas en tiempo real\n"
-            "4️⃣ Te muestro los mejores resultados al instante\n\n"
-            "**Fuentes de datos:**\n"
-            "💼 Trabajo: 11 sitios (Indeed, InfoJobs, Milanuncios...)\n"
-            "🏠 Vivienda: 6 sitios (Idealista, Fotocasa, Badi...)\n\n"
-            "**Precio:**\n"
-            "💎 **10€/mes** - Acceso completo sin límites\n\n"
+            "⚠️ **PASO 1: PAGAR**\n"
+            "Escribe al WhatsApp: +34 936 07 56 41\n"
+            "Paga 10€/mes - UN SOLO PAGO para TODO\n\n"
+            "✅ **PASO 2: ACTIVACIÓN MANUAL**\n"
+            "Verificamos tu pago y te activamos\n\n"
+            "🔍 **PASO 3: USAR EL BOT**\n"
+            "1️⃣ Busca trabajo o vivienda (sin límite)\n"
+            "2️⃣ Responde las preguntas\n"
+            "3️⃣ Recibe TODAS las ofertas encontradas\n"
+            "4️⃣ Activa alertas automáticas (cada hora)\n\n"
+            "💎 **UN SOLO PAGO: 10€/mes**\n"
+            "• Trabajo: 11 portales\n"
+            "• Vivienda: 6 portales\n"
+            "• Alertas automáticas\n"
+            "• Búsquedas ilimitadas\n\n"
+            "📞 **WhatsApp para PAGAR:**\n"
+            "+34 936 07 56 41\n\n"
             "**Comandos:**\n"
             "/start - Menú principal\n"
-            "/help - Esta ayuda\n\n"
-            "📞 **Soporte/Pagos:** +34 936 07 56 41 (WhatsApp)"
+            "/help - Esta ayuda\n"
+            "/pago - Info de pago"
         )
+        await update.message.reply_text(msg, parse_mode='Markdown')
+    
+    async def pago(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Comando /pago - Información de pago"""
+        user_id = update.effective_user.id
+        
+        msg = (
+            "💳 **INFORMACIÓN DE PAGO**\n\n"
+            "⚠️ **IMPORTANTE:**\n"
+            "Debes PAGAR antes de usar el bot.\n"
+            "Sin pago confirmado, no podrás buscar.\n\n"
+            "💎 **Precio: 10€/mes**\n\n"
+            "📞 **Escribe al WhatsApp para PAGAR:**\n"
+            "+34 936 07 56 41\n\n"
+            f"🆔 **Tu ID:** `{user_id}`\n"
+            "⚠️ Proporciona este ID al escribir\n\n"
+            "📋 **Proceso:**\n"
+            "1. Escribe al WhatsApp\n"
+            "2. Envía tu ID de usuario\n"
+            "3. Te diremos cómo pagar\n"
+            "4. Confirmas el pago\n"
+            "5. Eres activado inmediatamente\n\n"
+            "🔄 **Renovación:**\n"
+            "Mensual - Te avisaremos por WhatsApp."
+        )
+        
         await update.message.reply_text(msg, parse_mode='Markdown')
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -364,6 +466,8 @@ class VidaNuevaBot:
             await self.buscar_vivienda(update, context)
         elif "⚙️" in text or "búsquedas" in text:
             await self.mis_busquedas(update, context)
+        elif "💳" in text or "pago" in text:
+            await self.pago(update, context)
         elif "ℹ️" in text or "ayuda" in text:
             await self.ayuda(update, context)
         else:
@@ -442,17 +546,122 @@ class VidaNuevaBot:
                 await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
     
     async def handle_admin_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Manejar botones de activar/desactivar usuarios"""
+        """Manejar botones de activar/desactivar usuarios y búsquedas"""
         query = update.callback_query
         await query.answer()
         
         user_id = update.effective_user.id
+        data = query.data
         
+        # Manejar activar/desactivar búsquedas (cualquier usuario)
+        if data.startswith("toggle_search_"):
+            parts = data.split("_")
+            search_id = int(parts[2])
+            action = parts[3]  # 'on' o 'off'
+            
+            if action == "on":
+                if toggle_search_status(search_id, True):
+                    await query.answer("✅ Alertas activadas")
+                    # Refrescar la vista
+                    searches = get_user_searches(user_id)
+                    
+                    if searches:
+                        msg = "⚙️ **TUS BÚSQUEDAS:**\n\n"
+                        keyboard = []
+                        
+                        for i, search in enumerate(searches, 1):
+                            tipo = "💼 Trabajo" if search['search_type'] == 'trabajo' else "🏠 Vivienda"
+                            status = "🔔 ON" if search['is_active'] else "🔕 OFF"
+                            msg += f"{i}. {tipo}: {search['keywords']}\n"
+                            if search['location']:
+                                msg += f"   📍 {search['location']}\n"
+                            msg += f"   Alertas: {status}\n\n"
+                            
+                            if search['is_active']:
+                                keyboard.append([InlineKeyboardButton(
+                                    f"🔕 Desactivar #{i}",
+                                    callback_data=f"toggle_search_{search['id']}_off"
+                                )])
+                            else:
+                                keyboard.append([InlineKeyboardButton(
+                                    f"🔔 Activar #{i}",
+                                    callback_data=f"toggle_search_{search['id']}_on"
+                                )])
+                        
+                        keyboard.append([InlineKeyboardButton(
+                            "🗑️ Eliminar todas",
+                            callback_data="delete_all_searches"
+                        )])
+                        
+                        msg += f"\n📊 Total: {len(searches)} búsquedas\n"
+                        msg += "\n💡 **Alertas automáticas:**\n"
+                        msg += "🔔 ON = Revisa cada hora y te avisa\n"
+                        msg += "🔕 OFF = No busca automáticamente"
+                        
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Error al activar", show_alert=True)
+            else:
+                if toggle_search_status(search_id, False):
+                    await query.answer("🔕 Alertas desactivadas")
+                    # Refrescar la vista
+                    searches = get_user_searches(user_id)
+                    
+                    if searches:
+                        msg = "⚙️ **TUS BÚSQUEDAS:**\n\n"
+                        keyboard = []
+                        
+                        for i, search in enumerate(searches, 1):
+                            tipo = "💼 Trabajo" if search['search_type'] == 'trabajo' else "🏠 Vivienda"
+                            status = "🔔 ON" if search['is_active'] else "🔕 OFF"
+                            msg += f"{i}. {tipo}: {search['keywords']}\n"
+                            if search['location']:
+                                msg += f"   📍 {search['location']}\n"
+                            msg += f"   Alertas: {status}\n\n"
+                            
+                            if search['is_active']:
+                                keyboard.append([InlineKeyboardButton(
+                                    f"🔕 Desactivar #{i}",
+                                    callback_data=f"toggle_search_{search['id']}_off"
+                                )])
+                            else:
+                                keyboard.append([InlineKeyboardButton(
+                                    f"🔔 Activar #{i}",
+                                    callback_data=f"toggle_search_{search['id']}_on"
+                                )])
+                        
+                        keyboard.append([InlineKeyboardButton(
+                            "🗑️ Eliminar todas",
+                            callback_data="delete_all_searches"
+                        )])
+                        
+                        msg += f"\n📊 Total: {len(searches)} búsquedas\n"
+                        msg += "\n💡 **Alertas automáticas:**\n"
+                        msg += "🔔 ON = Revisa cada hora y te avisa\n"
+                        msg += "🔕 OFF = No busca automáticamente"
+                        
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Error al desactivar", show_alert=True)
+            return
+        
+        # Eliminar todas las búsquedas
+        if data == "delete_all_searches":
+            if delete_user_searches(user_id):
+                await query.edit_message_text(
+                    "🗑️ **Todas las búsquedas eliminadas**\n\n"
+                    "Usa los botones del menú para crear nuevas búsquedas."
+                )
+            else:
+                await query.answer("❌ Error al eliminar", show_alert=True)
+            return
+        
+        # COMANDOS DE ADMIN
         if ADMIN_ID == 0 or user_id != ADMIN_ID:
             await query.edit_message_text("❌ No tienes permisos de administrador.")
             return
-        
-        data = query.data
         
         if data.startswith("activate_"):
             target_user_id = int(data.split("_")[1])
@@ -520,17 +729,14 @@ class VidaNuevaBot:
         
         if not user_data.get('is_premium', False):
             await update.message.reply_text(
-                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
-                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
-                "💎 **10€/mes** - Acceso completo\n"
-                "• 11 portales de trabajo\n"
-                "• 6 portales de vivienda\n"
-                "• Alertas automáticas cada hora\n"
-                "• Búsquedas ilimitadas\n\n"
-                "📞 **Contacta para activar:**\n"
-                "+34 936 07 56 41 (WhatsApp)\n\n"
-                f"🆔 Tu ID: `{user_id}`\n"
-                "Proporciona este ID al hacer el pago.",
+                "🔒 **PAGO REQUERIDO**\n\n"
+                "⚠️ Debes PAGAR primero para usar el bot.\n\n"
+                "💎 **Precio: 10€/mes**\n\n"
+                "📞 **Escribe al WhatsApp para PAGAR:**\n"
+                "+34 936 07 56 41\n\n"
+                f"🆔 **Tu ID:** `{user_id}`\n"
+                "Envía este ID cuando escribas.\n\n"
+                "✅ Serás activado inmediatamente tras confirmar el pago.",
                 parse_mode='Markdown'
             )
             return
@@ -595,6 +801,31 @@ class VidaNuevaBot:
             logger.info(f"Buscando trabajos: {keywords} en {location}")
             jobs = search_jobs(keywords, location, max_results=50)
             
+            # Filtro adicional de relevancia
+            if jobs:
+                keywords_lower = keywords.lower().split()
+                location_lower = location.lower()
+                filtered_jobs = []
+                
+                for job in jobs:
+                    job_text = (job['title'] + ' ' + job.get('description', '')).lower()
+                    job_location = job['location'].lower()
+                    
+                    # Debe contener al menos una palabra clave
+                    has_keyword = any(kw in job_text for kw in keywords_lower)
+                    
+                    # Debe estar en la ubicación (o ser remoto)
+                    if location_lower in ['españa', 'spain']:
+                        location_ok = True
+                    else:
+                        location_ok = location_lower in job_location or 'remoto' in job_location or 'teletrabajo' in job_location
+                    
+                    if has_keyword and location_ok:
+                        filtered_jobs.append(job)
+                
+                jobs = filtered_jobs
+                logger.info(f"Después de filtro de relevancia: {len(jobs)} trabajos")
+            
             # Filtrar por criterios adicionales
             if min_salary or contract_type or experience is not None:
                 filtered_jobs = []
@@ -652,7 +883,8 @@ class VidaNuevaBot:
                     f"• Prueba con sinónimos (ej: 'mesero' en vez de 'camarero')\n"
                     f"• Amplía la ubicación (ej: 'España' en vez de ciudad)\n"
                     f"• Reduce los filtros\n\n"
-                    f"✅ Tu búsqueda está guardada. Te avisaré cuando encuentre ofertas.",
+                    f"✅ Búsqueda guardada.\n"
+                    f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas automáticas.",
                     parse_mode='Markdown'
                 )
                 return
@@ -662,12 +894,12 @@ class VidaNuevaBot:
                 f"✅ **ENCONTRADOS {len(jobs)} TRABAJOS**\n\n"
                 f"💼 {keywords}\n"
                 f"📍 {location}\n\n"
-                f"📋 Mostrando los primeros 5 resultados:\n"
+                f"📋 Enviando todos los resultados:\n"
             )
             await status_msg.edit_text(result_msg, parse_mode='Markdown')
             
             # Enviar cada trabajo como mensaje separado
-            for i, job in enumerate(jobs[:5], 1):
+            for i, job in enumerate(jobs, 1):
                 job_msg = (
                     f"**{i}. {job['title']}**\n"
                     f"🏢 {job['company']}\n"
@@ -693,14 +925,15 @@ class VidaNuevaBot:
                 await update.message.reply_text(job_msg, parse_mode='Markdown', disable_web_page_preview=True)
             
             # Mensaje final
-            if len(jobs) > 5:
-                await update.message.reply_text(
-                    f"📊 Se encontraron **{len(jobs)} ofertas** en total.\n\n"
-                    f"✅ Tu búsqueda está guardada.\n"
-                    f"🔔 Te avisaré cuando aparezcan nuevas ofertas.\n\n"
-                    f"💡 Usa '⚙️ Mis Búsquedas' para ver todas tus búsquedas activas.",
-                    parse_mode='Markdown'
-                )
+            await update.message.reply_text(
+                f"📊 **TOTAL: {len(jobs)} ofertas enviadas**\n\n"
+                f"✅ Búsqueda guardada correctamente.\n\n"
+                f"🔔 **ACTIVAR ALERTAS:**\n"
+                f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
+                f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
+                f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
+                parse_mode='Markdown'
+            )
             
         except Exception as e:
             logger.error(f"Error procesando búsqueda: {e}")
@@ -718,17 +951,14 @@ class VidaNuevaBot:
         
         if not user_data.get('is_premium', False):
             await update.message.reply_text(
-                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
-                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
-                "💎 **10€/mes** - Acceso completo\n"
-                "• 11 portales de trabajo\n"
-                "• 6 portales de vivienda\n"
-                "• Alertas automáticas cada hora\n"
-                "• Búsquedas ilimitadas\n\n"
-                "📞 **Contacta para activar:**\n"
-                "+34 936 07 56 41 (WhatsApp)\n\n"
-                f"🆔 Tu ID: `{user_id}`\n"
-                "Proporciona este ID al hacer el pago.",
+                "🔒 **PAGO REQUERIDO**\n\n"
+                "⚠️ Debes PAGAR primero para usar el bot.\n\n"
+                "💎 **Precio: 10€/mes**\n\n"
+                "📞 **Escribe al WhatsApp para PAGAR:**\n"
+                "+34 936 07 56 41\n\n"
+                f"🆔 **Tu ID:** `{user_id}`\n"
+                "Envía este ID cuando escribas.\n\n"
+                "✅ Serás activado inmediatamente tras confirmar el pago.",
                 parse_mode='Markdown'
             )
             return
@@ -810,6 +1040,30 @@ class VidaNuevaBot:
             logger.info(f"Buscando viviendas: {keywords} en {location}")
             listings = search_housing(keywords, location, None, max_results=40)
             
+            # Filtro adicional de relevancia
+            if listings:
+                keywords_lower = keywords.lower()
+                location_lower = location.lower()
+                filtered_listings = []
+                
+                for listing in listings:
+                    listing_text = (listing['title'] + ' ' + listing.get('description', '')).lower()
+                    listing_location = listing['location'].lower()
+                    
+                    # Si busca habitación, excluir pisos completos
+                    if 'habitacion' in keywords_lower:
+                        if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
+                            continue
+                    
+                    # Debe estar en la ubicación correcta
+                    location_ok = location_lower in listing_location
+                    
+                    if location_ok:
+                        filtered_listings.append(listing)
+                
+                listings = filtered_listings
+                logger.info(f"Después de filtro de relevancia: {len(listings)} viviendas")
+            
             # Filtrar por criterios adicionales
             if min_price or max_price or bedrooms or min_m2 or bathrooms:
                 filtered_listings = []
@@ -876,7 +1130,8 @@ class VidaNuevaBot:
                     f"• Prueba con otra ciudad\n"
                     f"• Cambia el tipo (ej: 'habitacion' en vez de 'piso')\n"
                     f"• Amplía la zona de búsqueda\n\n"
-                    f"✅ Tu búsqueda está guardada. Te avisaré cuando encuentre ofertas.",
+                    f"✅ Búsqueda guardada.\n"
+                    f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas automáticas.",
                     parse_mode='Markdown'
                 )
                 return
@@ -886,12 +1141,12 @@ class VidaNuevaBot:
                 f"✅ **ENCONTRADAS {len(listings)} VIVIENDAS**\n\n"
                 f"🏘️ {keywords}\n"
                 f"📍 {location}\n\n"
-                f"📋 Mostrando los primeros 5 resultados:\n"
+                f"📋 Enviando todos los resultados:\n"
             )
             await status_msg.edit_text(result_msg, parse_mode='Markdown')
             
             # Enviar cada vivienda como mensaje separado
-            for i, listing in enumerate(listings[:5], 1):
+            for i, listing in enumerate(listings, 1):
                 housing_msg = (
                     f"**{i}. {listing['title']}**\n"
                     f"📍 {listing['location']}\n"
@@ -919,14 +1174,15 @@ class VidaNuevaBot:
                 await update.message.reply_text(housing_msg, parse_mode='Markdown', disable_web_page_preview=True)
             
             # Mensaje final
-            if len(listings) > 5:
-                await update.message.reply_text(
-                    f"📊 Se encontraron **{len(listings)} viviendas** en total.\n\n"
-                    f"✅ Tu búsqueda está guardada.\n"
-                    f"🔔 Te avisaré cuando aparezcan nuevas ofertas.\n\n"
-                    f"💡 Usa '⚙️ Mis Búsquedas' para ver todas tus búsquedas activas.",
-                    parse_mode='Markdown'
-                )
+            await update.message.reply_text(
+                f"📊 **TOTAL: {len(listings)} viviendas enviadas**\n\n"
+                f"✅ Búsqueda guardada correctamente.\n\n"
+                f"🔔 **ACTIVAR ALERTAS:**\n"
+                f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
+                f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
+                f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
+                parse_mode='Markdown'
+            )
             
         except Exception as e:
             logger.error(f"Error procesando búsqueda vivienda: {e}")
@@ -940,16 +1196,17 @@ class VidaNuevaBot:
         try:
             logger.info("🔔 Ejecutando verificación de alertas automáticas...")
             
-            # Obtener todas las búsquedas activas
+            # Obtener solo las búsquedas con alertas ACTIVADAS
             searches = get_all_searches()
+            active_searches = [s for s in searches if s.get('is_active', False)]
             
-            if not searches:
-                logger.info("No hay búsquedas activas para verificar")
+            if not active_searches:
+                logger.info("No hay búsquedas con alertas activadas")
                 return
             
-            logger.info(f"Verificando {len(searches)} búsquedas activas...")
+            logger.info(f"Verificando {len(active_searches)} búsquedas con alertas activadas...")
             
-            for search in searches:
+            for search in active_searches:
                 search_id = search['id']
                 user_id = search['user_id']
                 search_type = search['search_type']
@@ -989,8 +1246,8 @@ class VidaNuevaBot:
                                     parse_mode='Markdown'
                                 )
                                 
-                                # Enviar primeros 3 trabajos
-                                for i, job in enumerate(new_jobs[:3], 1):
+                                # Enviar todos los trabajos
+                                for i, job in enumerate(new_jobs, 1):
                                     job_msg = (
                                         f"**{i}. {job['title']}**\n"
                                         f"🏢 {job['company']}\n"
@@ -1036,8 +1293,8 @@ class VidaNuevaBot:
                                     parse_mode='Markdown'
                                 )
                                 
-                                # Enviar primeras 3 viviendas
-                                for i, listing in enumerate(new_listings[:3], 1):
+                                # Enviar todas las viviendas
+                                for i, listing in enumerate(new_listings, 1):
                                     housing_msg = (
                                         f"**{i}. {listing['title']}**\n"
                                         f"📍 {listing['location']}\n"
@@ -1108,6 +1365,7 @@ class VidaNuevaBot:
         # Handlers
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("help", self.ayuda))
+        self.app.add_handler(CommandHandler("pago", self.pago))
         self.app.add_handler(CommandHandler("admin", self.admin))
         self.app.add_handler(CommandHandler("usuarios", self.usuarios))
         self.app.add_handler(CallbackQueryHandler(self.handle_admin_callback))
@@ -1115,7 +1373,7 @@ class VidaNuevaBot:
         self.app.add_handler(vivienda_conv)
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
-        # Programar alertas automáticas cada hora
+        # Sistema de alertas automáticas (solo para búsquedas activas)
         job_queue = self.app.job_queue
         job_queue.run_repeating(
             self.check_alerts,
@@ -1123,7 +1381,7 @@ class VidaNuevaBot:
             first=60,  # Primera ejecución después de 1 minuto
             name='alert_checker'
         )
-        logger.info("🔔 Sistema de alertas automáticas activado (cada 1 hora)")
+        logger.info("🔔 Sistema de alertas automáticas activado (cada 1 hora - solo búsquedas activas)")
         
         # Iniciar
         logger.info("Bot iniciado correctamente ✅")

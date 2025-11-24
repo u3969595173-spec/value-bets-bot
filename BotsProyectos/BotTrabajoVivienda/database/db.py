@@ -552,3 +552,49 @@ def search_housing_db(keywords, location=None, max_price=None, special_tags=None
     finally:
         cursor.close()
         conn.close()
+
+
+def toggle_search_status(search_id, is_active):
+    """Activar o desactivar alertas para una búsqueda"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "UPDATE searches SET is_active = %s WHERE id = %s",
+            (is_active, search_id)
+        )
+        conn.commit()
+        status = "activada" if is_active else "desactivada"
+        logger.info(f"✅ Búsqueda {search_id} {status}")
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error cambiando estado de búsqueda: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_user_searches(user_id):
+    """Eliminar todas las búsquedas de un usuario"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "DELETE FROM searches WHERE user_id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        logger.info(f"✅ Búsquedas de usuario {user_id} eliminadas")
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error eliminando búsquedas: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+

@@ -427,15 +427,32 @@ class HousingScraper:
                 logger.error(f"Error en {name}: {e}")
                 continue
         
-        # Eliminar duplicados por URL
+        # Eliminar duplicados por URL y filtrar por relevancia
         seen_urls = set()
         unique_listings = []
+        keywords_lower = keywords.lower()
+        location_lower = location.lower()
+        
         for listing in all_listings:
             if listing['url'] not in seen_urls:
                 seen_urls.add(listing['url'])
-                unique_listings.append(listing)
+                
+                # Filtrar por tipo de vivienda
+                listing_text = (listing['title'] + ' ' + listing.get('description', '')).lower()
+                
+                # Si busca "habitacion", filtrar pisos completos
+                if 'habitacion' in keywords_lower:
+                    if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
+                        continue
+                
+                # Filtrar por ubicación
+                listing_location = listing['location'].lower()
+                location_match = location_lower in listing_location
+                
+                if location_match:
+                    unique_listings.append(listing)
         
-        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas de {len(all_listings)} encontradas desde 6 fuentes")
+        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 6 fuentes")
         
         return unique_listings
 
