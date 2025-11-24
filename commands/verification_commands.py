@@ -47,8 +47,10 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     
     # Si el event_id empieza con "hist_", buscar en bet_history del usuario
     if event_id.startswith('hist_'):
+        logger.info(f"🔍 Buscando {event_id} en bet_history (total: {len(user.bet_history)} apuestas)")
         for bet in user.bet_history:
-            if bet.get('event_id') == event_id and bet.get('status') == 'pending':
+            if bet.get('event_id') == event_id:
+                # Encontrada - permitir actualizar aunque ya esté verificada
                 target_alert = {
                     'user_id': user_id,
                     'event_id': event_id,
@@ -56,10 +58,17 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
                     'odds': bet.get('odds', 1.0),
                     'selection': bet.get('selection', 'N/A'),
                     'point': bet.get('point'),
-                    'alert_id': f"{user_id}_{event_id}"
+                    'alert_id': f"{user_id}_{event_id}",
+                    'current_status': bet.get('status', 'pending')
                 }
-                logger.info(f"✅ Apuesta encontrada en historial: {event_id}")
+                logger.info(f"✅ Apuesta encontrada: {event_id} (status actual: {bet.get('status')})")
                 break
+        
+        if not target_alert:
+            logger.error(f"❌ No se encontró {event_id} en bet_history")
+            # Debug: mostrar todos los event_ids
+            event_ids = [b.get('event_id') for b in user.bet_history]
+            logger.info(f"📋 Event IDs disponibles: {event_ids}")
     else:
         # Buscar en alerts_tracker para alertas nuevas
         pending_alerts = tracker.get_pending_alerts(hours_old=168)
@@ -92,21 +101,39 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
         emoji = "🔄"
         status_text = "EMPATE (Push)"
     
-    # Actualizar bankroll dinámico
-    old_bank = user.dynamic_bank
-    user.dynamic_bank += profit_loss
-    new_bank = user.dynamic_bank
-    
-    logger.info(f"💰 Bank actualizado: {old_bank:.2f}€ → {new_bank:.2f}€ ({profit_loss:+.2f}€)")
+    # NO actualizar bank aquí - se hará después de revisar estado anterior
     
     # Actualizar historial de apuestas
+    bet_updated = False
+    old_bank = user.dynamic_bank
+    
     for bet in user.bet_history:
-        if bet.get('event_id') == event_id and bet.get('status') == 'pending':
+        if bet.get('event_id') == event_id:
+            # Calcular profit según el resultado anterior si existe
+            previous_status = bet.get('status')
+            previous_profit = bet.get('profit', 0)
+            
+            # Si ya tenía un resultado, revertir el profit anterior
+            if previous_status in ['won', 'lost', 'push'] and previous_profit:
+                user.dynamic_bank -= previous_profit
+                logger.info(f"🔄 Revirtiendo profit anterior: {previous_profit:+.2f}€")
+            
+            # Aplicar nuevo resultado
             bet['status'] = result
             bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
             bet['profit'] = profit_loss
-            logger.info(f"📝 Apuesta actualizada en historial: {result}")
+            user.dynamic_bank += profit_loss
+            
+            logger.info(f"📝 Apuesta actualizada: {previous_status} → {result}")
+            bet_updated = True
             break
+    
+    if not bet_updated:
+        logger.warning(f"⚠️ No se pudo actualizar la apuesta {event_id} en bet_history")
+    
+    # Recalcular bank final
+    new_bank = user.dynamic_bank
+    logger.info(f"💰 Bank actualizado: {old_bank:.2f}€ → {new_bank:.2f}€")
     
     # Actualizar tracker
     alert_id = target_alert.get('alert_id', f"{user_id}_{event_id}_manual")
