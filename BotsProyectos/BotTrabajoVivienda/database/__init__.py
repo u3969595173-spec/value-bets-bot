@@ -13,7 +13,9 @@ from .db import (
     activate_user,
     deactivate_user,
     get_all_users,
-    get_user_stats
+    get_user_stats,
+    toggle_search_status,
+    delete_user_searches
 )
 
 __all__ = [
@@ -30,5 +32,7 @@ __all__ = [
     'activate_user',
     'deactivate_user',
     'get_all_users',
-    'get_user_stats'
+    'get_user_stats',
+    'toggle_search_status',
+    'delete_user_searches'
 ]
