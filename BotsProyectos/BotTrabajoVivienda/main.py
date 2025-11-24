@@ -799,37 +799,18 @@ class VidaNuevaBot:
             
             # Ejecutar scraping
             logger.info(f"Buscando trabajos: {keywords} en {location}")
-            jobs = search_jobs(keywords, location, max_results=50)
+            result = search_jobs(keywords, location, max_results=50)
             
-            # Filtro adicional de relevancia
-            if jobs:
-                keywords_lower = keywords.lower().split()
-                location_lower = location.lower()
-                filtered_jobs = []
-                
-                for job in jobs:
-                    job_text = (job['title'] + ' ' + job.get('description', '')).lower()
-                    job_location = job['location'].lower()
-                    
-                    # Debe contener al menos una palabra clave
-                    has_keyword = any(kw in job_text for kw in keywords_lower)
-                    
-                    # Debe estar en la ubicación (o ser remoto)
-                    if location_lower in ['españa', 'spain']:
-                        location_ok = True
-                    else:
-                        location_ok = location_lower in job_location or 'remoto' in job_location or 'teletrabajo' in job_location
-                    
-                    if has_keyword and location_ok:
-                        filtered_jobs.append(job)
-                
-                jobs = filtered_jobs
-                logger.info(f"Después de filtro de relevancia: {len(jobs)} trabajos")
+            # El scraper ahora devuelve un dict con exact_matches y location_only
+            exact_jobs = result.get('exact_matches', []) if isinstance(result, dict) else result
+            location_jobs = result.get('location_only', []) if isinstance(result, dict) else []
             
-            # Filtrar por criterios adicionales
-            if min_salary or contract_type or experience is not None:
+            # Aplicar filtros adicionales si hay (salario, contrato, experiencia) solo a exact_jobs
+            if (min_salary or contract_type or experience is not None) and exact_jobs:
+            # Aplicar filtros adicionales si hay (salario, contrato, experiencia) solo a exact_jobs
+            if (min_salary or contract_type or experience is not None) and exact_jobs:
                 filtered_jobs = []
-                for job in jobs:
+                for job in exact_jobs:
                     # Filtrar por salario
                     if min_salary and job.get('salary'):
                         try:
@@ -858,12 +839,13 @@ class VidaNuevaBot:
                     
                     filtered_jobs.append(job)
                 
-                jobs = filtered_jobs
-                logger.info(f"Después de filtrar: {len(jobs)} trabajos")
+                exact_jobs = filtered_jobs
+                logger.info(f"Después de filtrar: {len(exact_jobs)} trabajos exactos")
             
             # Guardar en base de datos
-            if jobs:
-                saved_count = save_jobs(jobs)
+            all_jobs_to_save = exact_jobs + location_jobs
+            if all_jobs_to_save:
+                saved_count = save_jobs(all_jobs_to_save)
                 logger.info(f"Guardados {saved_count} trabajos nuevos")
             
             # Guardar búsqueda
@@ -874,7 +856,7 @@ class VidaNuevaBot:
                 logger.error(f"Error guardando búsqueda: {e}")
             
             # Actualizar mensaje con resultados
-            if not jobs:
+            if not exact_jobs and not location_jobs:
                 await status_msg.edit_text(
                     f"❌ **NO SE ENCONTRARON RESULTADOS**\n\n"
                     f"💼 Puesto: {keywords}\n"
@@ -889,51 +871,95 @@ class VidaNuevaBot:
                 )
                 return
             
-            # Enviar resultados
-            result_msg = (
-                f"✅ **ENCONTRADOS {len(jobs)} TRABAJOS**\n\n"
-                f"💼 {keywords}\n"
-                f"📍 {location}\n\n"
-                f"📋 Enviando todos los resultados:\n"
-            )
-            await status_msg.edit_text(result_msg, parse_mode='Markdown')
-            
-            # Enviar cada trabajo como mensaje separado
-            for i, job in enumerate(jobs, 1):
-                job_msg = (
-                    f"**{i}. {job['title']}**\n"
-                    f"🏢 {job['company']}\n"
-                    f"📍 {job['location']}\n"
+            # Si hay trabajos exactos, mostrarlos primero
+            if exact_jobs:
+                result_msg = (
+                    f"✅ **ENCONTRADOS {len(exact_jobs)} TRABAJOS DE {keywords.upper()}**\n\n"
+                    f"💼 {keywords}\n"
+                    f"📍 {location}\n\n"
+                    f"📋 Enviando todos los resultados:\n"
                 )
+                await status_msg.edit_text(result_msg, parse_mode='Markdown')
                 
-                if job.get('salary'):
-                    job_msg += f"💰 {job['salary']}\n"
+                # Enviar cada trabajo como mensaje separado
+                for i, job in enumerate(exact_jobs, 1):
+                    job_msg = (
+                        f"**{i}. {job['title']}**\n"
+                        f"🏢 {job['company']}\n"
+                        f"📍 {job['location']}\n"
+                    )
+                    
+                    if job.get('salary'):
+                        job_msg += f"💰 {job['salary']}\n"
+                    
+                    if job.get('special_tags'):
+                        tags_emoji = {
+                            'sin_papeles': '🔓',
+                            'sin_experiencia': '🎓',
+                            'urgente': '⚡',
+                            'hosteleria': '🍽️'
+                        }
+                        tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in job['special_tags']])
+                        job_msg += f"{tags_str}\n"
+                    
+                    job_msg += f"\n🔗 [Ver oferta]({job['url']})\n"
+                    job_msg += f"📡 Fuente: {job['source']}"
+                    
+                    await update.message.reply_text(job_msg, parse_mode='Markdown', disable_web_page_preview=True)
                 
-                if job.get('special_tags'):
-                    tags_emoji = {
-                        'sin_papeles': '🔓',
-                        'sin_experiencia': '🎓',
-                        'urgente': '⚡',
-                        'hosteleria': '🍽️'
-                    }
-                    tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in job['special_tags']])
-                    job_msg += f"{tags_str}\n"
-                
-                job_msg += f"\n🔗 [Ver oferta]({job['url']})\n"
-                job_msg += f"📡 Fuente: {job['source']}"
-                
-                await update.message.reply_text(job_msg, parse_mode='Markdown', disable_web_page_preview=True)
+                # Mensaje final
+                await update.message.reply_text(
+                    f"📊 **TOTAL: {len(exact_jobs)} ofertas de {keywords} enviadas**\n\n"
+                    f"✅ Búsqueda guardada correctamente.\n\n"
+                    f"🔔 **ACTIVAR ALERTAS:**\n"
+                    f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
+                    f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
+                    f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
+                    parse_mode='Markdown'
+                )
             
-            # Mensaje final
-            await update.message.reply_text(
-                f"📊 **TOTAL: {len(jobs)} ofertas enviadas**\n\n"
-                f"✅ Búsqueda guardada correctamente.\n\n"
-                f"🔔 **ACTIVAR ALERTAS:**\n"
-                f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
-                f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
-                f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
-                parse_mode='Markdown'
-            )
+            # Si NO hay trabajos exactos PERO SÍ hay en la ubicación, mostrar mensaje alternativo
+            elif not exact_jobs and location_jobs:
+                no_exact_msg = (
+                    f"❌ **NO ENCONTRÉ TRABAJOS DE {keywords.upper()} EN {location.upper()}**\n\n"
+                    f"Pero encontré **{len(location_jobs)} trabajos disponibles en {location}**:\n"
+                )
+                await status_msg.edit_text(no_exact_msg, parse_mode='Markdown')
+                
+                # Enviar trabajos alternativos
+                for i, job in enumerate(location_jobs, 1):
+                    job_msg = (
+                        f"**{i}. {job['title']}**\n"
+                        f"🏢 {job['company']}\n"
+                        f"📍 {job['location']}\n"
+                    )
+                    
+                    if job.get('salary'):
+                        job_msg += f"💰 {job['salary']}\n"
+                    
+                    if job.get('special_tags'):
+                        tags_emoji = {
+                            'sin_papeles': '🔓',
+                            'sin_experiencia': '🎓',
+                            'urgente': '⚡',
+                            'hosteleria': '🍽️'
+                        }
+                        tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in job['special_tags']])
+                        job_msg += f"{tags_str}\n"
+                    
+                    job_msg += f"\n🔗 [Ver oferta]({job['url']})\n"
+                    job_msg += f"📡 Fuente: {job['source']}"
+                    
+                    await update.message.reply_text(job_msg, parse_mode='Markdown', disable_web_page_preview=True)
+                
+                # Mensaje final explicativo
+                await update.message.reply_text(
+                    f"📊 **{len(location_jobs)} trabajos alternativos en {location}**\n\n"
+                    f"💡 No encontré trabajos específicos de **{keywords}**, pero estos están en tu ubicación y podrían interesarte.\n\n"
+                    f"✅ Búsqueda guardada.\n"
+                    f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas.",
+                    parse_mode='Markdown'
+                )
             
         except Exception as e:
             logger.error(f"Error procesando búsqueda: {e}")
@@ -1224,21 +1250,34 @@ class VidaNuevaBot:
                     
                     if search_type == 'trabajo':
                         # Buscar trabajos
-                        new_jobs = search_jobs(keywords, location, max_results=10)
+                        result = search_jobs(keywords, location, max_results=10)
+                        
+                        # Manejar nuevo formato con exact_matches y location_only
+                        exact_jobs = result.get('exact_matches', []) if isinstance(result, dict) else result
+                        location_jobs = result.get('location_only', []) if isinstance(result, dict) else []
+                        
+                        # Priorizar trabajos exactos
+                        new_jobs = exact_jobs if exact_jobs else location_jobs[:5]  # Solo 5 alternativos
                         
                         if new_jobs:
                             # Guardar en BD
                             saved = save_jobs(new_jobs)
                             
                             if saved > 0:
-                                # Enviar alerta al usuario
-                                alert_msg = (
-                                    f"🔔 **NUEVA ALERTA DE TRABAJO**\n\n"
-                                    f"💼 {keywords}\n"
-                                    f"📍 {location}\n\n"
-                                    f"✅ Se encontraron **{saved} nuevas ofertas**\n\n"
-                                    f"Mostrando las primeras:"
-                                )
+                                # Mensaje diferente según tipo de resultados
+                                if exact_jobs:
+                                    alert_msg = (
+                                        f"🔔 **NUEVA ALERTA DE TRABAJO**\n\n"
+                                        f"💼 {keywords}\n"
+                                        f"📍 {location}\n\n"
+                                        f"✅ Se encontraron **{saved} nuevas ofertas**\n\n"
+                                        f"Mostrando las primeras:"
+                                    )
+                                else:
+                                    alert_msg = (
+                                        f"🔔 **ALERTA: Trabajos en {location}**\n\n"
+                                        f"No encontré trabajos de **{keywords}**, pero hay {len(new_jobs)} ofertas en tu ubicación:\n"
+                                    )
                                 
                                 await context.bot.send_message(
                                     chat_id=user_id,

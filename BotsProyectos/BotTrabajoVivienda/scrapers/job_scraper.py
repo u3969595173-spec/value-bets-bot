@@ -1260,7 +1260,8 @@ class JobScraper:
         
         # Eliminar duplicados por URL y filtrar por relevancia
         seen_urls = set()
-        unique_jobs = []
+        exact_match_jobs = []  # Trabajos que coinciden con categoría Y ubicación
+        location_only_jobs = []  # Trabajos solo con ubicación correcta (sin categoría)
         
         # Expandir keywords por categoría
         expanded_keywords = self.expand_keywords(keywords)
@@ -1291,13 +1292,21 @@ class JobScraper:
                         job_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
-                # DEBE CUMPLIR AMBAS: keyword de la categoría Y ubicación correcta
+                # Separar en dos grupos
                 if has_keyword and location_match:
-                    unique_jobs.append(job)
+                    exact_match_jobs.append(job)  # Coincidencia exacta
+                elif location_match:
+                    location_only_jobs.append(job)  # Solo ubicación correcta
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 18 fuentes")
+        # Devolver ambos grupos para que el bot decida qué mostrar
+        result = {
+            'exact_matches': exact_match_jobs,
+            'location_only': location_only_jobs[:20]  # Limitar a 20 para no saturar
+        }
         
-        return unique_jobs
+        logger.info(f"📊 Encontrados: {len(exact_match_jobs)} trabajos exactos + {len(location_only_jobs)} trabajos en la ubicación")
+        
+        return result
 
 
 def search_jobs(keywords, location="España", max_results=50):
