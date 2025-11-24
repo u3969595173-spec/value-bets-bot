@@ -1290,11 +1290,12 @@ class JobScraper:
                     # Si es remoto/teletrabajo
                     elif 'remoto' in job_location or 'teletrabajo' in job_location or 'a distancia' in job_location:
                         location_match = True
-                    # FALLBACK: Si no pudo extraer ubicación, buscar en título/descripción
+                    # FALLBACK: Si no pudo extraer ubicación (común en muchos scrapers)
+                    # CONFIAR en que el scraper buscó en la ubicación correcta
                     elif job_location == 'no especificada':
-                        # Buscar la ciudad en el texto del trabajo
-                        if any(loc in job_text for loc in locations_lower):
-                            location_match = True
+                        # Verificar si menciona la ciudad en título/descripción
+                        # O simplemente confiar en el scraper (ya filtró por ciudad en la URL)
+                        location_match = True  # Confiar en el scraper
                 else:
                     # Si busca en toda España, acepta todo
                     location_match = True
