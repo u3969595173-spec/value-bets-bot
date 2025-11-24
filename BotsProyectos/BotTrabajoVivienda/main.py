@@ -14,10 +14,11 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-from database import init_database, get_or_create_user, save_search, get_user_searches, save_jobs, search_jobs_db, save_housing, search_housing_db
+from database import init_database, get_or_create_user, save_search, get_user_searches, save_jobs, search_jobs_db, save_housing, search_housing_db, get_all_searches
 from scrapers.job_scraper import search_jobs
 from scrapers.housing_scraper import search_housing
 import json
+from datetime import datetime, timedelta
 
 # Cargar variables de entorno
 load_dotenv()
@@ -36,6 +37,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 class VidaNuevaBot:
     def __init__(self):
         self.app = None
+        self.last_alert_check = {}  # {search_id: last_check_time}
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Comando /start"""
@@ -384,14 +386,162 @@ class VidaNuevaBot:
                 f"Intenta de nuevo o contacta con soporte."
             )
     
+    async def check_alerts(self, context: ContextTypes.DEFAULT_TYPE):
+        """Verificar búsquedas guardadas y enviar alertas de nuevos resultados"""
+        try:
+            logger.info("🔔 Ejecutando verificación de alertas automáticas...")
+            
+            # Obtener todas las búsquedas activas
+            searches = get_all_searches()
+            
+            if not searches:
+                logger.info("No hay búsquedas activas para verificar")
+                return
+            
+            logger.info(f"Verificando {len(searches)} búsquedas activas...")
+            
+            for search in searches:
+                search_id = search['id']
+                user_id = search['user_id']
+                search_type = search['search_type']
+                keywords = search['keywords']
+                location = search['location']
+                
+                try:
+                    # Verificar si ya se revisó recientemente (última hora)
+                    if search_id in self.last_alert_check:
+                        time_diff = datetime.now() - self.last_alert_check[search_id]
+                        if time_diff < timedelta(hours=1):
+                            continue
+                    
+                    logger.info(f"Verificando búsqueda #{search_id}: {search_type} - {keywords} en {location}")
+                    
+                    if search_type == 'trabajo':
+                        # Buscar trabajos
+                        new_jobs = search_jobs(keywords, location, max_results=10)
+                        
+                        if new_jobs:
+                            # Guardar en BD
+                            saved = save_jobs(new_jobs)
+                            
+                            if saved > 0:
+                                # Enviar alerta al usuario
+                                alert_msg = (
+                                    f"🔔 **NUEVA ALERTA DE TRABAJO**\n\n"
+                                    f"💼 {keywords}\n"
+                                    f"📍 {location}\n\n"
+                                    f"✅ Se encontraron **{saved} nuevas ofertas**\n\n"
+                                    f"Mostrando las primeras:"
+                                )
+                                
+                                await context.bot.send_message(
+                                    chat_id=user_id,
+                                    text=alert_msg,
+                                    parse_mode='Markdown'
+                                )
+                                
+                                # Enviar primeros 3 trabajos
+                                for i, job in enumerate(new_jobs[:3], 1):
+                                    job_msg = (
+                                        f"**{i}. {job['title']}**\n"
+                                        f"🏢 {job['company']}\n"
+                                        f"📍 {job['location']}\n"
+                                    )
+                                    
+                                    if job.get('salary'):
+                                        job_msg += f"💰 {job['salary']}\n"
+                                    
+                                    job_msg += f"\n🔗 [Ver oferta]({job['url']})\n"
+                                    job_msg += f"📡 {job['source']}"
+                                    
+                                    await context.bot.send_message(
+                                        chat_id=user_id,
+                                        text=job_msg,
+                                        parse_mode='Markdown',
+                                        disable_web_page_preview=True
+                                    )
+                                
+                                logger.info(f"✅ Alerta enviada a usuario {user_id}: {saved} trabajos")
+                    
+                    elif search_type == 'vivienda':
+                        # Buscar viviendas
+                        new_listings = search_housing(keywords, location, None, max_results=10)
+                        
+                        if new_listings:
+                            # Guardar en BD
+                            saved = save_housing(new_listings)
+                            
+                            if saved > 0:
+                                # Enviar alerta al usuario
+                                alert_msg = (
+                                    f"🔔 **NUEVA ALERTA DE VIVIENDA**\n\n"
+                                    f"🏠 {keywords}\n"
+                                    f"📍 {location}\n\n"
+                                    f"✅ Se encontraron **{saved} nuevas viviendas**\n\n"
+                                    f"Mostrando las primeras:"
+                                )
+                                
+                                await context.bot.send_message(
+                                    chat_id=user_id,
+                                    text=alert_msg,
+                                    parse_mode='Markdown'
+                                )
+                                
+                                # Enviar primeras 3 viviendas
+                                for i, listing in enumerate(new_listings[:3], 1):
+                                    housing_msg = (
+                                        f"**{i}. {listing['title']}**\n"
+                                        f"📍 {listing['location']}\n"
+                                    )
+                                    
+                                    if listing.get('price'):
+                                        housing_msg += f"💰 {listing['price']}€/mes\n"
+                                    
+                                    if listing.get('bedrooms'):
+                                        housing_msg += f"🛏️ {listing['bedrooms']} hab.\n"
+                                    
+                                    housing_msg += f"\n🔗 [Ver anuncio]({listing['url']})\n"
+                                    housing_msg += f"📡 {listing['source']}"
+                                    
+                                    await context.bot.send_message(
+                                        chat_id=user_id,
+                                        text=housing_msg,
+                                        parse_mode='Markdown',
+                                        disable_web_page_preview=True
+                                    )
+                                
+                                logger.info(f"✅ Alerta enviada a usuario {user_id}: {saved} viviendas")
+                    
+                    # Actualizar timestamp de última verificación
+                    self.last_alert_check[search_id] = datetime.now()
+                    
+                except Exception as e:
+                    logger.error(f"Error verificando búsqueda #{search_id}: {e}")
+                    continue
+            
+            logger.info("✅ Verificación de alertas completada")
+            
+        except Exception as e:
+            logger.error(f"Error en check_alerts: {e}")
+    
     def run(self):
         """Iniciar el bot"""
-        self.app = Application.builder().token(BOT_TOKEN).job_queue(None).build()
+        self.app = Application.builder().token(BOT_TOKEN).build()
         
         # Handlers
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("help", self.ayuda))
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+        
+        # Programar alertas automáticas cada hora
+        job_queue = self.app.job_queue
+        job_queue.run_repeating(
+            self.check_alerts,
+            interval=3600,  # 1 hora en segundos
+            first=60,  # Primera ejecución después de 1 minuto
+            name='alert_checker'
+        )
+        logger.info("🔔 Sistema de alertas automáticas activado (cada 1 hora)")
         
         # Iniciar
         logger.info("Bot iniciado correctamente ✅")

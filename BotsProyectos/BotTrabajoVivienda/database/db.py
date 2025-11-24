@@ -219,6 +219,30 @@ def get_user_searches(user_id):
         conn.close()
 
 
+def get_all_searches():
+    """Obtener todas las búsquedas activas para alertas automáticas"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT * FROM searches 
+            WHERE is_active = TRUE
+            ORDER BY created_at DESC
+            """
+        )
+        searches = cursor.fetchall()
+        return [dict(s) for s in searches]
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo todas las búsquedas: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def save_jobs(jobs):
     """Guardar múltiples trabajos en la base de datos"""
     conn = get_connection()
