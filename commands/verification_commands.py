@@ -144,6 +144,12 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     
     # Guardar cambios
     users_manager.save()
+    logger.info(f"💾 Cambios guardados. User {user_id} bet_history tiene {len(user.bet_history)} apuestas")
+    
+    # Debug: contar cuántas pendientes quedan
+    pending_count = sum(1 for b in user.bet_history if b.get('status') == 'pending')
+    verified_count = sum(1 for b in user.bet_history if b.get('status') in ['won', 'lost', 'push'])
+    logger.info(f"📊 Después de guardar: {pending_count} pendientes, {verified_count} verificadas")
     
     # Notificar usuario
     try:
@@ -454,6 +460,13 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
     
     # Filtrar solo apuestas pendientes
     pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+    
+    logger.info(f"🔍 /verificar - Usuario {chat_id} tiene {len(user.bet_history)} apuestas totales")
+    logger.info(f"⏳ Apuestas pendientes: {len(pending_bets)}")
+    
+    # Debug: mostrar primeros 3 status
+    for i, bet in enumerate(user.bet_history[:3], 1):
+        logger.info(f"  {i}. event_id={bet.get('event_id')[:8]}... status={bet.get('status')}")
     
     if not pending_bets:
         await update.message.reply_text("✅ No tienes apuestas pendientes de verificar")
