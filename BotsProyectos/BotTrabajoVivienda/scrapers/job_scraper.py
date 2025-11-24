@@ -937,6 +937,256 @@ class JobScraper:
         
         return jobs
     
+    def scrape_empleofacil(self, keywords, location="", max_results=20):
+        """Scraper para Empleofacil.es"""
+        jobs = []
+        try:
+            base_url = "https://www.empleofacil.es/empleo"
+            params = {'q': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Empleofacil: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_cards = soup.find_all(['div', 'article'], class_=re.compile(r'job|offer'))
+                
+                for card in job_cards[:max_results]:
+                    try:
+                        title_elem = card.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else card.find('a').get('href', '') if card.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.empleofacil.es' + url
+                        
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Empleofacil",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'empleofacil',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Empleofacil: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Empleofacil: {e}")
+        
+        return jobs
+    
+    def scrape_opcionempleo(self, keywords, location="", max_results=20):
+        """Scraper para Opcionempleo.es"""
+        jobs = []
+        try:
+            base_url = "https://www.opcionempleo.com/empleos"
+            params = {'q': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Opcionempleo: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_items = soup.find_all(['div', 'article'], class_=re.compile(r'job|offer'))
+                
+                for item in job_items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.opcionempleo.com' + url
+                        
+                        location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Opcionempleo",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'opcionempleo',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Opcionempleo: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Opcionempleo: {e}")
+        
+        return jobs
+    
+    def scrape_jobrapido(self, keywords, location="", max_results=20):
+        """Scraper para Jobrapido.com"""
+        jobs = []
+        try:
+            base_url = "https://es.jobrapido.com/"
+            params = {'q': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Jobrapido: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_listings = soup.find_all(['div', 'li'], class_=re.compile(r'job|listing'))
+                
+                for listing in job_listings[:max_results]:
+                    try:
+                        title_elem = listing.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else listing.find('a').get('href', '') if listing.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://es.jobrapido.com' + url
+                        
+                        location_elem = listing.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Jobrapido",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'jobrapido',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Jobrapido: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Jobrapido: {e}")
+        
+        return jobs
+    
+    def scrape_domestiko(self, keywords, location="", max_results=20):
+        """Scraper para Domestiko.com (empleadas hogar)"""
+        jobs = []
+        try:
+            base_url = "https://www.domestiko.com/empleos"
+            params = {'buscar': keywords, 'donde': location}
+            
+            logger.info(f"🔍 Scraping Domestiko: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_cards = soup.find_all(['div', 'article'], class_=re.compile(r'empleo|oferta'))
+                
+                for card in job_cards[:max_results]:
+                    try:
+                        title_elem = card.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else card.find('a').get('href', '') if card.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.domestiko.com' + url
+                        
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Domestiko",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'domestiko',
+                                'special_tags': ['servicio_domestico'],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Domestiko: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Domestiko: {e}")
+        
+        return jobs
+    
+    def scrape_jobatus(self, keywords, location="", max_results=20):
+        """Scraper para Jobatus.es"""
+        jobs = []
+        try:
+            base_url = "https://www.jobatus.es/empleo"
+            params = {'q': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Jobatus: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_items = soup.find_all(['div'], class_=re.compile(r'job|offer'))
+                
+                for item in job_items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.jobatus.es' + url
+                        
+                        location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Jobatus",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'jobatus',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Jobatus: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Jobatus: {e}")
+        
+        return jobs
+    
     def scrape_all(self, keywords, location="España", max_per_source=10):
         """Scraping desde TODAS las fuentes populares"""
         all_jobs = []
@@ -953,11 +1203,17 @@ class JobScraper:
             ('Monster', lambda: self.scrape_monster(keywords, location, max_per_source)),
             ('Jooble', lambda: self.scrape_jooble(keywords, location, max_per_source)),
             # ('JobToday', lambda: self.scrape_jobtoday(keywords, location, max_per_source)),  # Bloqueado 403
-            # Nuevos scrapers
+            # Nuevos scrapers ETT y grandes portales
             ('Cornerjob', lambda: self.scrape_cornerjob(keywords, location, max_per_source)),
             ('Randstad', lambda: self.scrape_randstad(keywords, location, max_per_source)),
             ('Adecco', lambda: self.scrape_adecco(keywords, location, max_per_source)),
             ('Manpower', lambda: self.scrape_manpower(keywords, location, max_per_source)),
+            # Más portales adicionales
+            ('Empleofacil', lambda: self.scrape_empleofacil(keywords, location, max_per_source)),
+            ('Opcionempleo', lambda: self.scrape_opcionempleo(keywords, location, max_per_source)),
+            ('Jobrapido', lambda: self.scrape_jobrapido(keywords, location, max_per_source)),
+            ('Domestiko', lambda: self.scrape_domestiko(keywords, location, max_per_source)),
+            ('Jobatus', lambda: self.scrape_jobatus(keywords, location, max_per_source)),
         ]
         
         for name, scraper_func in scrapers:
@@ -1006,7 +1262,7 @@ class JobScraper:
                 if has_keyword and location_match:
                     unique_jobs.append(job)
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 13 fuentes")
+        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 18 fuentes")
         
         return unique_jobs
 

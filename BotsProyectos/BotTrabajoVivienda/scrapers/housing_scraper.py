@@ -705,6 +705,222 @@ class HousingScraper:
         
         return listings
     
+    def scrape_rentalia(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Rentalia.com"""
+        listings = []
+        try:
+            location_slug = location.lower()
+            base_url = f"https://www.rentalia.com/alquiler-{location_slug}"
+            
+            logger.info(f"🔍 Scraping Rentalia: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div', 'article'], class_=re.compile(r'property|listing'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.rentalia.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'rentalia',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Rentalia: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Rentalia: {e}")
+        
+        return listings
+    
+    def scrape_yaencontre(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Yaencontre.com"""
+        listings = []
+        try:
+            base_url = "https://www.yaencontre.com/pisos-alquiler"
+            params = {'lugar': location}
+            
+            logger.info(f"🔍 Scraping Yaencontre: {location}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div', 'article'], class_=re.compile(r'anuncio|listing'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.yaencontre.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price|precio'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'yaencontre',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Yaencontre: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Yaencontre: {e}")
+        
+        return listings
+    
+    def scrape_nuroa(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Nuroa.es"""
+        listings = []
+        try:
+            location_slug = location.lower().replace(" ", "-")
+            base_url = f"https://www.nuroa.es/alquiler/{location_slug}"
+            
+            logger.info(f"🔍 Scraping Nuroa: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div'], class_=re.compile(r'property|vivienda'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.nuroa.es' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'nuroa',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Nuroa: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Nuroa: {e}")
+        
+        return listings
+    
+    def scrape_casadirecta(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Casadirecta.com"""
+        listings = []
+        try:
+            base_url = "https://www.casadirecta.com/alquiler"
+            params = {'ubicacion': location}
+            
+            logger.info(f"🔍 Scraping Casadirecta: {location}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div', 'article'], class_=re.compile(r'property|inmueble'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.casadirecta.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'casadirecta',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Casadirecta: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Casadirecta: {e}")
+        
+        return listings
+    
     def scrape_all(self, keywords, location="madrid", max_price=None, max_per_source=10):
         """Scraping desde TODAS las fuentes de vivienda"""
         all_listings = []
@@ -716,12 +932,17 @@ class HousingScraper:
             ('Milanuncios', lambda: self.scrape_milanuncios_housing(keywords, location, max_price, max_per_source)),
             ('Pisos.com', lambda: self.scrape_pisos_com(keywords, location, max_price, max_per_source)),
             ('Habitaclia', lambda: self.scrape_habitaclia(keywords, location, max_price, max_per_source)),
-            # Nuevos scrapers
+            # Nuevos scrapers internacionales
             ('Enalquiler', lambda: self.scrape_enalquiler(keywords, location, max_price, max_per_source)),
             ('Alquiler.com', lambda: self.scrape_alquiler_com(keywords, location, max_price, max_per_source)),
             ('Spotahome', lambda: self.scrape_spotahome(keywords, location, max_price, max_per_source)),
             ('Uniplaces', lambda: self.scrape_uniplaces(keywords, location, max_price, max_per_source)),
             ('HousingAnywhere', lambda: self.scrape_housinganywhere(keywords, location, max_price, max_per_source)),
+            # Más portales adicionales
+            ('Rentalia', lambda: self.scrape_rentalia(keywords, location, max_price, max_per_source)),
+            ('Yaencontre', lambda: self.scrape_yaencontre(keywords, location, max_price, max_per_source)),
+            ('Nuroa', lambda: self.scrape_nuroa(keywords, location, max_price, max_per_source)),
+            ('Casadirecta', lambda: self.scrape_casadirecta(keywords, location, max_price, max_per_source)),
         ]
         
         for name, scraper_func in scrapers:
@@ -768,7 +989,7 @@ class HousingScraper:
                 if location_match:
                     unique_listings.append(listing)
         
-        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 11 fuentes")
+        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 15 fuentes")
         
         return unique_listings
 
