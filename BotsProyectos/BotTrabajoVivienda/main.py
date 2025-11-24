@@ -1138,6 +1138,7 @@ class VidaNuevaBot:
                     f"✅ Búsqueda guardada.\n"
                     f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas automáticas.",
                     parse_mode='Markdown'
+                )
                 return
             
             # Si hay viviendas exactas, mostrarlas primero
