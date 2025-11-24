@@ -189,6 +189,15 @@ if __name__ == '__main__':
         logger.error("❌ BOT_TOKEN no configurado en .env")
         exit(1)
     
+    # Inicializar base de datos
+    try:
+        logger.info("🔄 Inicializando base de datos...")
+        init_database()
+        logger.info("✅ Base de datos inicializada correctamente")
+    except Exception as e:
+        logger.error(f"❌ Error inicializando base de datos: {e}")
+        exit(1)
+    
     # Iniciar servidor HTTP para Render (en background)
     if os.getenv('RENDER_SERVICE_NAME'):
         run_in_background()
