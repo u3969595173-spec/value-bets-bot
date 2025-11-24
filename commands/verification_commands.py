@@ -365,13 +365,41 @@ async def show_full_history_callback(update: Update, context: ContextTypes.DEFAU
         else:
             emoji = "⏳"
         
-        msg += f"{i}. {emoji} *{bet.get('selection', 'N/A')}*\n"
-        msg += f"   💰 {bet.get('odds', 0):.2f} | Stake: {bet.get('stake', 0):.2f}€"
+        # Información completa
+        home = bet.get('home_team', 'Team A')
+        away = bet.get('away_team', 'Team B')
+        sport = bet.get('sport', '')
+        market = bet.get('market', '')
+        selection = bet.get('selection', 'N/A')
+        point = bet.get('point', '')
+        odds = bet.get('odds', 0)
+        stake = bet.get('stake', 0)
+        profit = bet.get('profit')
+        date = bet.get('date', '')[:16]
         
-        if bet.get('profit') is not None:
-            msg += f" | P/L: *{bet.get('profit', 0):+.2f}€*"
+        # Tipo de apuesta
+        if 'spread' in market.lower() or 'handicap' in market.lower():
+            bet_type = "HANDICAP"
+        elif 'total' in market.lower() or 'over' in selection.lower() or 'under' in selection.lower():
+            bet_type = "TOTALES"
+        elif 'h2h' in market.lower() or 'moneyline' in market.lower():
+            bet_type = "GANADOR"
+        else:
+            bet_type = market.upper() if market else "APUESTA"
         
-        msg += f"\n   📅 {bet.get('date', '')[:16]}\n\n"
+        msg += f"{i}. {emoji} *{bet_type}*\n"
+        msg += f"   🏟️ {home} vs {away}\n"
+        if sport:
+            msg += f"   ⚽ {sport.upper()}\n"
+        msg += f"   🎯 {selection}"
+        if point:
+            msg += f" ({point})"
+        msg += f"\n   💰 {odds:.2f} | 💵 {stake:.2f}€"
+        
+        if profit is not None:
+            msg += f" | P/L: *{profit:+.2f}€*"
+        
+        msg += f"\n   📅 {date}\n\n"
         
         # Telegram tiene límite de 4096 caracteres
         if len(msg) > 3500:
@@ -424,13 +452,39 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
     
     # Enviar cada apuesta pendiente con botones
     for i, bet in enumerate(pending_bets[:20], 1):  # Máximo 20
-        bet_msg = f"**{i}. {bet.get('selection', 'N/A')}**\n"
-        bet_msg += f"💰 Cuota: {bet.get('odds', 0):.2f}\n"
-        bet_msg += f"💵 Stake: {bet.get('stake', 0):.2f}€\n"
-        bet_msg += f"📅 {bet.get('date', '')[:16]}\n"
+        # Construir mensaje detallado
+        home = bet.get('home_team', 'Team A')
+        away = bet.get('away_team', 'Team B')
+        sport = bet.get('sport', 'Sport')
+        market = bet.get('market', '')
+        selection = bet.get('selection', 'N/A')
+        point = bet.get('point', '')
+        odds = bet.get('odds', 0)
+        stake = bet.get('stake', 0)
+        date = bet.get('date', '')[:16]
+        
+        # Determinar tipo de apuesta
+        if 'spread' in market.lower() or 'handicap' in market.lower():
+            bet_type = "🔢 HANDICAP"
+        elif 'total' in market.lower() or 'over' in selection.lower() or 'under' in selection.lower():
+            bet_type = "📊 TOTALES"
+        elif 'h2h' in market.lower() or 'moneyline' in market.lower():
+            bet_type = "🏆 GANADOR"
+        else:
+            bet_type = "🎯 APUESTA"
+        
+        bet_msg = f"**{i}. {bet_type}**\n\n"
+        bet_msg += f"🏟️ {home} vs {away}\n"
+        bet_msg += f"⚽ Deporte: {sport.upper()}\n\n"
+        bet_msg += f"🎯 Pick: {selection}\n"
+        if point:
+            bet_msg += f"📊 Línea: {point}\n"
+        bet_msg += f"💰 Cuota: {odds:.2f}\n"
+        bet_msg += f"💵 Stake: {stake:.2f}€\n"
+        bet_msg += f"📅 Fecha: {date}\n"
         
         # Botones de verificación
-        event_id = bet.get('id', f"hist_{i}")
+        event_id = bet.get('event_id', bet.get('id', f"hist_{i}"))
         keyboard = [[
             InlineKeyboardButton("✅ Ganó", callback_data=f"verify_won_{chat_id}_{event_id}"),
             InlineKeyboardButton("❌ Perdió", callback_data=f"verify_lost_{chat_id}_{event_id}"),
