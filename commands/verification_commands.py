@@ -249,34 +249,34 @@ async def cmd_stats_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     win_rate = (won / (won + lost) * 100) if (won + lost) > 0 else 0
     
     # Formatear mensaje
-    msg = "📊 **TUS ESTADÍSTICAS PROFESIONALES**\\n\\n"
+    msg = "📊 *TUS ESTADÍSTICAS PROFESIONALES*\n\n"
     
     # Bank dinámico
-    msg += "🏦 **BANKROLL DINÁMICO**\\n"
-    msg += f"💰 Bank actual: **{user.dynamic_bank:.2f}€**\\n"
-    msg += f"📈 Profit total: **{total_profit:+.2f}€**\\n\\n"
+    msg += "🏦 *BANKROLL DINÁMICO*\n"
+    msg += f"💰 Bank actual: *{user.dynamic_bank:.2f}€*\n"
+    msg += f"📈 Profit total: *{total_profit:+.2f}€*\n\n"
     
     # ROI por período
-    msg += "📈 **ROI POR PERÍODO**\\n"
-    msg += f"📅 Semanal: **{weekly_roi:+.1f}%** ({weekly_profit:+.2f}€)\\n"
-    msg += f"📅 Mensual: **{monthly_roi:+.1f}%** ({monthly_profit:+.2f}€)\\n"
-    msg += f"📅 Histórico: **{roi:+.1f}%** ({total_profit:+.2f}€)\\n\\n"
+    msg += "📈 *ROI POR PERÍODO*\n"
+    msg += f"📅 Semanal: *{weekly_roi:+.1f}%* ({weekly_profit:+.2f}€)\n"
+    msg += f"📅 Mensual: *{monthly_roi:+.1f}%* ({monthly_profit:+.2f}€)\n"
+    msg += f"📅 Histórico: *{roi:+.1f}%* ({total_profit:+.2f}€)\n\n"
     
     # Estadísticas generales
-    msg += "🎯 **ESTADÍSTICAS GENERALES**\\n"
-    msg += f"📊 Total apuestas: {total_bets}\\n"
-    msg += f"✅ Ganadas: {won}\\n"
-    msg += f"❌ Perdidas: {lost}\\n"
-    msg += f"🔄 Empates: {push}\\n"
-    msg += f"⏳ Pendientes: {pending}\\n"
-    msg += f"🎯 Win Rate: **{win_rate:.1f}%**\\n\\n"
+    msg += "🎯 *ESTADÍSTICAS GENERALES*\n"
+    msg += f"📊 Total apuestas: {total_bets}\n"
+    msg += f"✅ Ganadas: {won}\n"
+    msg += f"❌ Perdidas: {lost}\n"
+    msg += f"🔄 Empates: {push}\n"
+    msg += f"⏳ Pendientes: {pending}\n"
+    msg += f"🎯 Win Rate: *{win_rate:.1f}%*\n\n"
     
     # Gráfico ASCII simple
     if won + lost > 0:
         won_bar = '█' * int(won / (won + lost) * 20)
         lost_bar = '░' * int(lost / (won + lost) * 20)
-        msg += f"📊 {won_bar}{lost_bar}\\n"
-        msg += f"   {won}W / {lost}L\\n\\n"
+        msg += f"📊 {won_bar}{lost_bar}\n"
+        msg += f"   {won}W / {lost}L\n\n"
     
     # Botón para ver historial
     keyboard = [[
@@ -309,7 +309,7 @@ async def show_full_history_callback(update: Update, context: ContextTypes.DEFAU
         reverse=True
     )
     
-    msg = "📜 **HISTORIAL COMPLETO DE APUESTAS**\\n\\n"
+    msg = "📜 *HISTORIAL COMPLETO DE APUESTAS*\n\n"
     
     for i, bet in enumerate(sorted_history[:30], 1):  # Últimas 30
         status = bet.get('status', 'pending')
@@ -322,13 +322,13 @@ async def show_full_history_callback(update: Update, context: ContextTypes.DEFAU
         else:
             emoji = "⏳"
         
-        msg += f"{i}. {emoji} **{bet.get('selection', 'N/A')}**\\n"
+        msg += f"{i}. {emoji} *{bet.get('selection', 'N/A')}*\n"
         msg += f"   💰 {bet.get('odds', 0):.2f} | Stake: {bet.get('stake', 0):.2f}€"
         
         if bet.get('profit') is not None:
-            msg += f" | P/L: **{bet.get('profit', 0):+.2f}€**"
+            msg += f" | P/L: *{bet.get('profit', 0):+.2f}€*"
         
-        msg += f"\\n   📅 {bet.get('date', '')[:16]}\\n\\n"
+        msg += f"\n   📅 {bet.get('date', '')[:16]}\n\n"
         
         # Telegram tiene límite de 4096 caracteres
         if len(msg) > 3500:
