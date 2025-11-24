@@ -265,11 +265,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.infoempleo.com' + url
                         
+                        # Extraer ubicación real del HTML
+                        location_elem = card.find(['span', 'div', 'p'], class_=re.compile(r'location|ciudad|provincia|lugar'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': card.find(class_=re.compile(r'company')).get_text(strip=True) if card.find(class_=re.compile(r'company')) else "No especificada",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -689,21 +693,21 @@ class JobScraper:
                 job_text = (job['title'] + ' ' + job.get('description', '')).lower()
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
-                # Filtrar por ubicación (MÁS PERMISIVO)
+                # Filtrar por ubicación
                 location_match = True
-                if location_lower not in ['españa', 'spain', 'nacional']:
+                if location_lower not in ['españa', 'spain', 'nacional', '']:
                     job_location = job['location'].lower()
-                    # Acepta si: coincide ubicación, es remoto, O si location es "españa" genérica
+                    # Acepta si: coincide ubicación exacta, es remoto, o ubicación vacía/genérica
                     location_match = (
                         location_lower in job_location or 
                         'remoto' in job_location or 
                         'teletrabajo' in job_location or
-                        location_lower in ['españa', 'spain'] or
-                        job_location in ['españa', 'spain', 'nacional', '']
+                        'a distancia' in job_location or
+                        job_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
-                # ACEPTAR SI: tiene keyword O si location coincide (más permisivo)
-                if has_keyword or location_match:
+                # Debe cumplir AMBAS condiciones: keyword Y ubicación
+                if has_keyword and location_match:
                     unique_jobs.append(job)
         
         logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 11 fuentes")
