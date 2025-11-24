@@ -60,8 +60,8 @@ class VidaNuevaBot:
             "💼 **Trabajo** - 11 portales de empleo\n"
             "🏠 **Vivienda** - 6 portales inmobiliarios\n\n"
             "Todo en tiempo real.\n\n"
-            "💎 **Suscripción: 10€/mes**\n"
-            "Para activar tu cuenta, contacta con @tu_usuario\n\n"
+            "💎 **Suscripción: 10€/mes**\n\n"
+            "📞 **Soporte/Pagos:** +34 936 07 56 41 (WhatsApp)\n\n"
             "Selecciona una opción:"
         )
         
@@ -157,7 +157,7 @@ class VidaNuevaBot:
             "**Comandos:**\n"
             "/start - Menú principal\n"
             "/help - Esta ayuda\n\n"
-            "**Para suscribirte:** @tu_usuario"
+            "📞 **Soporte/Pagos:** +34 936 07 56 41 (WhatsApp)"
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
     
