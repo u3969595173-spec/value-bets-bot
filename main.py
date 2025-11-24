@@ -2203,6 +2203,8 @@ Tu saldo sigue disponible.
             bet_data = {
                 'event_id': candidate.get('id', ''),
                 'sport': candidate.get('sport_key', ''),
+                'home_team': candidate.get('home_team', ''),
+                'away_team': candidate.get('away_team', ''),
                 'selection': candidate.get('selection', ''),
                 'odds': candidate.get('odds', odds),
                 'stake': stake,

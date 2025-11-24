@@ -375,7 +375,18 @@ async def show_full_history_callback(update: Update, context: ContextTypes.DEFAU
         odds = bet.get('odds', 0)
         stake = bet.get('stake', 0)
         profit = bet.get('profit')
-        date = bet.get('date', '')[:16]
+        
+        # Formatear fecha
+        game_time = bet.get('commence_time', bet.get('date', ''))
+        if game_time:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(game_time.replace('Z', '+00:00'))
+                formatted_date = dt.strftime('%d/%m/%Y %H:%M')
+            except:
+                formatted_date = game_time[:16]
+        else:
+            formatted_date = "N/A"
         
         # Tipo de apuesta
         if 'spread' in market.lower() or 'handicap' in market.lower():
@@ -399,7 +410,7 @@ async def show_full_history_callback(update: Update, context: ContextTypes.DEFAU
         if profit is not None:
             msg += f" | P/L: *{profit:+.2f}€*"
         
-        msg += f"\n   📅 {date}\n\n"
+        msg += f"\n   📅 {formatted_date}\n\n"
         
         # Telegram tiene límite de 4096 caracteres
         if len(msg) > 3500:
@@ -461,7 +472,19 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
         point = bet.get('point', '')
         odds = bet.get('odds', 0)
         stake = bet.get('stake', 0)
-        date = bet.get('date', '')[:16]
+        
+        # Usar commence_time si existe, sino date
+        game_time = bet.get('commence_time', bet.get('date', ''))
+        if game_time:
+            # Formatear fecha de manera legible
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(game_time.replace('Z', '+00:00'))
+                formatted_date = dt.strftime('%d/%m/%Y %H:%M')
+            except:
+                formatted_date = game_time[:16]
+        else:
+            formatted_date = "Fecha no disponible"
         
         # Determinar tipo de apuesta
         if 'spread' in market.lower() or 'handicap' in market.lower():
@@ -481,7 +504,7 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
             bet_msg += f"📊 Línea: {point}\n"
         bet_msg += f"💰 Cuota: {odds:.2f}\n"
         bet_msg += f"💵 Stake: {stake:.2f}€\n"
-        bet_msg += f"📅 Fecha: {date}\n"
+        bet_msg += f"📅 Partido: {formatted_date}\n"
         
         # Botones de verificación
         event_id = bet.get('event_id', bet.get('id', f"hist_{i}"))
