@@ -15,7 +15,14 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 def get_connection():
     """Obtener conexión a la base de datos"""
     try:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        # Agregar sslmode=require para conexiones en Render
+        conn_params = DATABASE_URL
+        if '?' in DATABASE_URL:
+            conn_params += '&sslmode=require'
+        else:
+            conn_params += '?sslmode=require'
+        
+        conn = psycopg2.connect(conn_params, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:
         logger.error(f"Error conectando a PostgreSQL: {e}")
