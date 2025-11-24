@@ -1,0 +1,16 @@
+# Bot Telegram
+python-telegram-bot==20.7
+python-dotenv==1.0.0
+
+# PostgreSQL
+psycopg2-binary==2.9.9
+
+# Web Scraping
+beautifulsoup4==4.12.2
+requests==2.31.0
+html5lib==1.1
+fake-useragent==1.4.0
+
+# Utilidades
+python-dateutil==2.8.2
+pytz==2023.3
