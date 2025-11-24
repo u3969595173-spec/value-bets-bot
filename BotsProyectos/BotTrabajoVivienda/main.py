@@ -70,8 +70,8 @@ class VidaNuevaBot:
             f"¡Hola {user.first_name}! 👋\n\n"
             "Soy el Bot **Vida Nueva** 🚀\n\n"
             "Te ayudo a encontrar:\n"
-            "💼 **Trabajo** - 11 portales de empleo\n"
-            "🏠 **Vivienda** - 6 portales inmobiliarios\n\n"
+            "💼 **Trabajo** - 18 portales de empleo\n"
+            "🏠 **Vivienda** - 15 portales inmobiliarios\n\n"
             "Todo en tiempo real.\n\n"
             "💎 **UN SOLO PAGO: 10€/mes**\n"
             "Acceso completo a trabajo Y vivienda\n\n"
@@ -416,8 +416,8 @@ class VidaNuevaBot:
             "3️⃣ Recibe TODAS las ofertas encontradas\n"
             "4️⃣ Activa alertas automáticas (cada hora)\n\n"
             "💎 **UN SOLO PAGO: 10€/mes**\n"
-            "• Trabajo: 11 portales\n"
-            "• Vivienda: 6 portales\n"
+            "• Trabajo: 18 portales\n"
+            "• Vivienda: 15 portales\n"
             "• Alertas automáticas\n"
             "• Búsquedas ilimitadas\n\n"
             "📞 **WhatsApp para PAGAR:**\n"
@@ -675,8 +675,8 @@ class VidaNuevaBot:
                             "🎉 **¡CUENTA ACTIVADA!**\n\n"
                             "Tu suscripción Premium ha sido activada.\n"
                             "Ya puedes usar todas las funciones del bot.\n\n"
-                            "💼 Busca trabajos en 11 portales\n"
-                            "🏠 Busca viviendas en 6 portales\n"
+                            "💼 Busca trabajos en 18 portales\n"
+                            "🏠 Busca viviendas en 15 portales\n"
                             "🔔 Alertas automáticas cada hora\n\n"
                             "¡Disfruta del servicio!"
                         ),
@@ -793,7 +793,7 @@ class VidaNuevaBot:
             status_msg = await update.message.reply_text(
                 f"🔍 **BUSCANDO TRABAJO**\n\n"
                 f"{search_details}\n\n"
-                f"⏳ Escaneando 11 portales de empleo...",
+                f"⏳ Escaneando 18 portales de empleo...",
                 parse_mode='Markdown'
             )
             
@@ -1032,7 +1032,7 @@ class VidaNuevaBot:
             status_msg = await update.message.reply_text(
                 f"🏠 **BUSCANDO VIVIENDA**\n\n"
                 f"{search_details}\n\n"
-                f"⏳ Escaneando 6 portales de vivienda...",
+                f"⏳ Escaneando 15 portales de vivienda...",
                 parse_mode='Markdown'
             )
             
