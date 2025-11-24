@@ -9,7 +9,11 @@ from .db import (
     save_jobs,
     save_housing,
     search_jobs_db,
-    search_housing_db
+    search_housing_db,
+    activate_user,
+    deactivate_user,
+    get_all_users,
+    get_user_stats
 )
 
 __all__ = [
@@ -22,5 +26,9 @@ __all__ = [
     'save_jobs',
     'save_housing',
     'search_jobs_db',
-    'search_housing_db'
+    'search_housing_db',
+    'activate_user',
+    'deactivate_user',
+    'get_all_users',
+    'get_user_stats'
 ]

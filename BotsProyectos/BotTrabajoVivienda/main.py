@@ -5,16 +5,21 @@ MVP - Versión inicial
 import os
 import logging
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from web_server import run_in_background
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     ContextTypes,
-    filters
+    filters,
+    CallbackQueryHandler
 )
-from database import init_database, get_or_create_user, save_search, get_user_searches, save_jobs, search_jobs_db, save_housing, search_housing_db, get_all_searches
+from database import (
+    init_database, get_or_create_user, save_search, get_user_searches, 
+    save_jobs, search_jobs_db, save_housing, search_housing_db, get_all_searches,
+    activate_user, deactivate_user, get_all_users, get_user_stats
+)
 from scrapers.job_scraper import search_jobs
 from scrapers.housing_scraper import search_housing
 import json
@@ -32,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Configuración
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_ID = int(os.getenv('ADMIN_ID', '0'))  # Tu Telegram ID
 
 
 class VidaNuevaBot:
@@ -185,9 +191,163 @@ class VidaNuevaBot:
                     "No entiendo ese comando. Usa /help para ver los comandos disponibles."
                 )
     
+    async def admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Panel de administración (solo para admin)"""
+        user_id = update.effective_user.id
+        
+        if ADMIN_ID == 0 or user_id != ADMIN_ID:
+            await update.message.reply_text("❌ No tienes permisos de administrador.")
+            return
+        
+        # Obtener estadísticas
+        stats = get_user_stats()
+        
+        msg = (
+            "🔐 **PANEL DE ADMINISTRACIÓN**\n\n"
+            f"👥 Total usuarios: {stats.get('total_users', 0)}\n"
+            f"💎 Premium: {stats.get('premium_users', 0)}\n"
+            f"🆓 Gratis: {stats.get('free_users', 0)}\n\n"
+            "**Comandos disponibles:**\n"
+            "/usuarios - Ver lista de usuarios\n"
+            "/activar [user_id] - Activar usuario\n"
+            "/desactivar [user_id] - Desactivar usuario\n"
+            "/stats - Estadísticas detalladas"
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+    
+    async def usuarios(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ver lista de usuarios con botones para activar/desactivar"""
+        user_id = update.effective_user.id
+        
+        if ADMIN_ID == 0 or user_id != ADMIN_ID:
+            await update.message.reply_text("❌ No tienes permisos de administrador.")
+            return
+        
+        users = get_all_users()
+        
+        if not users:
+            await update.message.reply_text("No hay usuarios registrados.")
+            return
+        
+        # Enviar usuarios en grupos de 5
+        for i in range(0, len(users), 5):
+            batch = users[i:i+5]
+            
+            for user in batch:
+                status = "✅ Premium" if user['is_premium'] else "❌ Inactivo"
+                username = f"@{user['username']}" if user['username'] else "Sin username"
+                
+                msg = (
+                    f"**{user['first_name']}** {status}\n"
+                    f"ID: `{user['user_id']}`\n"
+                    f"Usuario: {username}\n"
+                    f"Registro: {user['created_at'].strftime('%d/%m/%Y')}"
+                )
+                
+                # Botones para activar/desactivar
+                keyboard = []
+                if user['is_premium']:
+                    keyboard.append([InlineKeyboardButton("❌ Desactivar", callback_data=f"deactivate_{user['user_id']}")])
+                else:
+                    keyboard.append([InlineKeyboardButton("✅ Activar Premium", callback_data=f"activate_{user['user_id']}")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+    
+    async def handle_admin_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Manejar botones de activar/desactivar usuarios"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        
+        if ADMIN_ID == 0 or user_id != ADMIN_ID:
+            await query.edit_message_text("❌ No tienes permisos de administrador.")
+            return
+        
+        data = query.data
+        
+        if data.startswith("activate_"):
+            target_user_id = int(data.split("_")[1])
+            
+            if activate_user(target_user_id):
+                # Notificar al usuario
+                try:
+                    await context.bot.send_message(
+                        chat_id=target_user_id,
+                        text=(
+                            "🎉 **¡CUENTA ACTIVADA!**\n\n"
+                            "Tu suscripción Premium ha sido activada.\n"
+                            "Ya puedes usar todas las funciones del bot.\n\n"
+                            "💼 Busca trabajos en 11 portales\n"
+                            "🏠 Busca viviendas en 6 portales\n"
+                            "🔔 Alertas automáticas cada hora\n\n"
+                            "¡Disfruta del servicio!"
+                        ),
+                        parse_mode='Markdown'
+                    )
+                except:
+                    pass
+                
+                await query.edit_message_text(
+                    f"{query.message.text}\n\n✅ **Usuario activado correctamente**"
+                )
+            else:
+                await query.edit_message_text(
+                    f"{query.message.text}\n\n❌ **Error al activar usuario**"
+                )
+        
+        elif data.startswith("deactivate_"):
+            target_user_id = int(data.split("_")[1])
+            
+            if deactivate_user(target_user_id):
+                # Notificar al usuario
+                try:
+                    await context.bot.send_message(
+                        chat_id=target_user_id,
+                        text=(
+                            "⚠️ **SUSCRIPCIÓN CANCELADA**\n\n"
+                            "Tu suscripción Premium ha sido desactivada.\n\n"
+                            "Para reactivarla, contacta:\n"
+                            "📞 +34 936 07 56 41 (WhatsApp)"
+                        ),
+                        parse_mode='Markdown'
+                    )
+                except:
+                    pass
+                
+                await query.edit_message_text(
+                    f"{query.message.text}\n\n✅ **Usuario desactivado correctamente**"
+                )
+            else:
+                await query.edit_message_text(
+                    f"{query.message.text}\n\n❌ **Error al desactivar usuario**"
+                )
+    
     async def process_job_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
         """Procesar búsqueda de trabajo"""
         user_id = update.effective_user.id
+        
+        # Verificar si el usuario es premium
+        user_data = get_or_create_user(user_id, update.effective_user.username, update.effective_user.first_name)
+        
+        if not user_data.get('is_premium', False):
+            await update.message.reply_text(
+                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
+                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
+                "💎 **10€/mes** - Acceso completo\n"
+                "• 11 portales de trabajo\n"
+                "• 6 portales de vivienda\n"
+                "• Alertas automáticas cada hora\n"
+                "• Búsquedas ilimitadas\n\n"
+                "📞 **Contacta para activar:**\n"
+                "+34 936 07 56 41 (WhatsApp)\n\n"
+                f"🆔 Tu ID: `{user_id}`\n"
+                "Proporciona este ID al hacer el pago.",
+                parse_mode='Markdown'
+            )
+            return
         
         try:
             # Parsear query: "trabajo: camarero, Madrid, salario: 1200, contrato: indefinido, experiencia: 2"
@@ -366,6 +526,26 @@ class VidaNuevaBot:
     async def process_housing_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
         """Procesar búsqueda de vivienda"""
         user_id = update.effective_user.id
+        
+        # Verificar si el usuario es premium
+        user_data = get_or_create_user(user_id, update.effective_user.username, update.effective_user.first_name)
+        
+        if not user_data.get('is_premium', False):
+            await update.message.reply_text(
+                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
+                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
+                "💎 **10€/mes** - Acceso completo\n"
+                "• 11 portales de trabajo\n"
+                "• 6 portales de vivienda\n"
+                "• Alertas automáticas cada hora\n"
+                "• Búsquedas ilimitadas\n\n"
+                "📞 **Contacta para activar:**\n"
+                "+34 936 07 56 41 (WhatsApp)\n\n"
+                f"🆔 Tu ID: `{user_id}`\n"
+                "Proporciona este ID al hacer el pago.",
+                parse_mode='Markdown'
+            )
+            return
         
         try:
             # Parsear query: "vivienda: habitacion, Madrid, precio: 300-500, habitaciones: 1, m2: 20"
@@ -714,6 +894,9 @@ class VidaNuevaBot:
         # Handlers
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("help", self.ayuda))
+        self.app.add_handler(CommandHandler("admin", self.admin))
+        self.app.add_handler(CommandHandler("usuarios", self.usuarios))
+        self.app.add_handler(CallbackQueryHandler(self.handle_admin_callback))
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
         # Programar alertas automáticas cada hora

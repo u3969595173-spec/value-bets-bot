@@ -243,6 +243,98 @@ def get_all_searches():
         conn.close()
 
 
+def activate_user(user_id):
+    """Activar usuario premium"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "UPDATE users SET is_premium = TRUE WHERE user_id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        logger.info(f"✅ Usuario {user_id} activado como premium")
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error activando usuario: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def deactivate_user(user_id):
+    """Desactivar usuario premium"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "UPDATE users SET is_premium = FALSE WHERE user_id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        logger.info(f"✅ Usuario {user_id} desactivado")
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error desactivando usuario: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_users():
+    """Obtener todos los usuarios"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT user_id, username, first_name, is_premium, created_at, last_active
+            FROM users
+            ORDER BY created_at DESC
+            """
+        )
+        users = cursor.fetchall()
+        return [dict(u) for u in users]
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo usuarios: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_user_stats():
+    """Obtener estadísticas de usuarios"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN is_premium = TRUE THEN 1 END) as premium_users,
+                COUNT(CASE WHEN is_premium = FALSE THEN 1 END) as free_users
+            FROM users
+            """
+        )
+        stats = cursor.fetchone()
+        return dict(stats)
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo estadísticas: {e}")
+        return {}
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def save_jobs(jobs):
     """Guardar múltiples trabajos en la base de datos"""
     conn = get_connection()
