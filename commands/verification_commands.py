@@ -113,6 +113,8 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
             previous_status = bet.get('status')
             previous_profit = bet.get('profit', 0)
             
+            logger.info(f"🔍 Apuesta encontrada en historial: status={previous_status}, profit={previous_profit}")
+            
             # Si ya tenía un resultado, revertir el profit anterior
             if previous_status in ['won', 'lost', 'push'] and previous_profit:
                 user.dynamic_bank -= previous_profit
@@ -121,10 +123,11 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
             # Aplicar nuevo resultado
             bet['status'] = result
             bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
-            bet['profit'] = profit_loss
+            bet['profit'] = profit_loss  # FORZAR guardar profit
             user.dynamic_bank += profit_loss
             
-            logger.info(f"📝 Apuesta actualizada: {previous_status} → {result}")
+            logger.info(f"📝 Apuesta actualizada: {previous_status} → {result}, profit: {profit_loss:+.2f}€")
+            logger.info(f"💰 Bank después de actualizar: {user.dynamic_bank:.2f}€")
             bet_updated = True
             break
     
@@ -133,7 +136,7 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     
     # Recalcular bank final
     new_bank = user.dynamic_bank
-    logger.info(f"💰 Bank actualizado: {old_bank:.2f}€ → {new_bank:.2f}€")
+    logger.info(f"💰 Bank final antes de guardar: {new_bank:.2f}€")
     
     # Actualizar tracker
     alert_id = target_alert.get('alert_id', f"{user_id}_{event_id}_manual")
@@ -520,7 +523,10 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
 
 async def cmd_limpiar_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comando /limpiar_pendientes [N] - Mantiene solo las últimas N apuestas pendientes
+    Comando /limpiar_pendientes [N] - Mantiene solo las últimas N apuestas (total o pendientes)
+    Uso: /limpiar [N] [all]
+    - /limpiar 10 → mantiene últimas 10 pendientes
+    - /limpiar 50 all → mantiene últimas 50 apuestas en total (borra historial antiguo)
     """
     chat_id = update.effective_user.id
     
@@ -531,12 +537,6 @@ async def cmd_limpiar_pendientes(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("❌ Solo el administrador puede usar este comando")
         return
     
-    # Obtener número de apuestas a mantener (default 2)
-    try:
-        keep_last = int(context.args[0]) if context.args else 2
-    except:
-        keep_last = 2
-    
     users_manager = get_users_manager()
     user = users_manager.get_user(str(chat_id))
     
@@ -544,41 +544,72 @@ async def cmd_limpiar_pendientes(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("❌ Usuario no encontrado")
         return
     
-    # Filtrar apuestas pendientes
-    pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+    # Parsear argumentos
+    clean_all = 'all' in [arg.lower() for arg in context.args] if context.args else False
+    try:
+        keep_last = int(context.args[0]) if context.args and context.args[0].isdigit() else 10
+    except:
+        keep_last = 10
     
-    if not pending_bets:
-        await update.message.reply_text("✅ No tienes apuestas pendientes")
-        return
-    
-    total_pending = len(pending_bets)
-    
-    if total_pending <= keep_last:
-        await update.message.reply_text(
-            f"ℹ️ Solo tienes {total_pending} apuestas pendientes.\n"
-            f"No es necesario limpiar (quieres mantener {keep_last})."
-        )
-        return
-    
-    # Mantener solo las últimas N pendientes, marcar el resto como "cancelled"
-    to_cancel = total_pending - keep_last
-    cancelled_count = 0
-    
-    for bet in user.bet_history:
-        if bet.get('status') == 'pending':
-            if cancelled_count < to_cancel:
-                bet['status'] = 'cancelled'
-                bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
-                cancelled_count += 1
-    
-    # Guardar cambios
-    users_manager.save()
-    
-    msg = f"🗑️ **LIMPIEZA COMPLETADA**\n\n"
-    msg += f"📊 Total pendientes: {total_pending}\n"
-    msg += f"❌ Canceladas: {cancelled_count}\n"
-    msg += f"✅ Mantenidas: {keep_last}\n\n"
-    msg += f"Las apuestas canceladas ya no aparecerán en /verificar"
-    
-    await update.message.reply_text(msg)
-    logger.info(f"🗑️ Admin {chat_id} limpió {cancelled_count} apuestas pendientes")
+    if clean_all:
+        # Limpiar TODO el historial, mantener solo últimas N apuestas
+        total_bets = len(user.bet_history)
+        if total_bets <= keep_last:
+            await update.message.reply_text(
+                f"ℹ️ Solo tienes {total_bets} apuestas en total.\n"
+                f"No es necesario limpiar."
+            )
+            return
+        
+        # Mantener solo las últimas N
+        user.bet_history = user.bet_history[-keep_last:]
+        deleted = total_bets - keep_last
+        
+        users_manager.save()
+        
+        msg = f"🗑️ **HISTORIAL LIMPIADO**\n\n"
+        msg += f"📊 Total anterior: {total_bets}\n"
+        msg += f"❌ Eliminadas: {deleted}\n"
+        msg += f"✅ Mantenidas: {keep_last}\n"
+        
+        await update.message.reply_text(msg)
+        logger.info(f"🗑️ Admin {chat_id} limpió historial: {deleted} apuestas eliminadas")
+    else:
+        # Solo marcar pendientes como canceladas
+        pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+        
+        if not pending_bets:
+            await update.message.reply_text("✅ No tienes apuestas pendientes")
+            return
+        
+        total_pending = len(pending_bets)
+        
+        if total_pending <= keep_last:
+            await update.message.reply_text(
+                f"ℹ️ Solo tienes {total_pending} apuestas pendientes.\n"
+                f"No es necesario limpiar (quieres mantener {keep_last})."
+            )
+            return
+        
+        # Mantener solo las últimas N pendientes, marcar el resto como "cancelled"
+        to_cancel = total_pending - keep_last
+        cancelled_count = 0
+        
+        for bet in user.bet_history:
+            if bet.get('status') == 'pending':
+                if cancelled_count < to_cancel:
+                    bet['status'] = 'cancelled'
+                    bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
+                    cancelled_count += 1
+        
+        # Guardar cambios
+        users_manager.save()
+        
+        msg = f"🗑️ **LIMPIEZA COMPLETADA**\n\n"
+        msg += f"📊 Total pendientes: {total_pending}\n"
+        msg += f"❌ Canceladas: {cancelled_count}\n"
+        msg += f"✅ Mantenidas: {keep_last}\n\n"
+        msg += f"Las apuestas canceladas ya no aparecerán en /verificar"
+        
+        await update.message.reply_text(msg)
+        logger.info(f"🗑️ Admin {chat_id} limpió {cancelled_count} apuestas pendientes")
