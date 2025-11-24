@@ -353,3 +353,46 @@ async def back_to_stats_callback(update: Update, context: ContextTypes.DEFAULT_T
     
     # Llamar a cmd_stats_pro simulando un update normal
     await cmd_stats_pro(update, context)
+
+
+async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /verificar_historial - Muestra apuestas pendientes del historial con botones
+    """
+    chat_id = update.effective_user.id
+    users_manager = get_users_manager()
+    user = users_manager.get_user(str(chat_id))
+    
+    if not user:
+        await update.message.reply_text("❌ Usuario no encontrado. Usa /start primero")
+        return
+    
+    # Filtrar solo apuestas pendientes
+    pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+    
+    if not pending_bets:
+        await update.message.reply_text("✅ No tienes apuestas pendientes de verificar")
+        return
+    
+    msg = f"⏳ **APUESTAS PENDIENTES** ({len(pending_bets)})\n\n"
+    msg += "Marca el resultado de cada apuesta:\n\n"
+    
+    await update.message.reply_text(msg)
+    
+    # Enviar cada apuesta pendiente con botones
+    for i, bet in enumerate(pending_bets[:20], 1):  # Máximo 20
+        bet_msg = f"**{i}. {bet.get('selection', 'N/A')}**\n"
+        bet_msg += f"💰 Cuota: {bet.get('odds', 0):.2f}\n"
+        bet_msg += f"💵 Stake: {bet.get('stake', 0):.2f}€\n"
+        bet_msg += f"📅 {bet.get('date', '')[:16]}\n"
+        
+        # Botones de verificación
+        event_id = bet.get('id', f"hist_{i}")
+        keyboard = [[
+            InlineKeyboardButton("✅ Ganó", callback_data=f"verify_won_{chat_id}_{event_id}"),
+            InlineKeyboardButton("❌ Perdió", callback_data=f"verify_lost_{chat_id}_{event_id}"),
+            InlineKeyboardButton("🔄 Push", callback_data=f"verify_push_{chat_id}_{event_id}")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(bet_msg, reply_markup=reply_markup)

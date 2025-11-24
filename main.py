@@ -1681,7 +1681,7 @@ Tu saldo sigue disponible.
         try:
             logger.info("🔄 Importando comandos de verificación...")
             from commands.verification_commands import (
-                cmd_pendientes, cmd_stats_pro, 
+                cmd_pendientes, cmd_stats_pro, cmd_verificar_historial,
                 handle_verification_callback, show_full_history_callback, back_to_stats_callback
             )
             from telegram.ext import CallbackQueryHandler
@@ -1690,6 +1690,10 @@ Tu saldo sigue disponible.
             self.telegram_app.add_handler(CommandHandler("pendientes", cmd_pendientes))
             logger.info("✅ Registrando /stats_pro...")
             self.telegram_app.add_handler(CommandHandler("stats_pro", cmd_stats_pro))
+            self.telegram_app.add_handler(CommandHandler("statspro", cmd_stats_pro))  # Alias sin guion bajo
+            logger.info("✅ Registrando /verificar_historial...")
+            self.telegram_app.add_handler(CommandHandler("verificar_historial", cmd_verificar_historial))
+            self.telegram_app.add_handler(CommandHandler("verificar", cmd_verificar_historial))  # Alias corto
             logger.info("✅ Registrando handlers de callbacks...")
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
             self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))

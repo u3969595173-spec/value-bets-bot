@@ -1,0 +1,69 @@
+═══════════════════════════════════════════════════
+📊 PARTE 1: ANÁLISIS Y PRONÓSTICOS
+═══════════════════════════════════════════════════
+
+🤖 MONITOREO AUTOMÁTICO 24/7
+
+• 16 ligas deportivas simultáneas
+• NBA, Euroliga, ACB España, LNB Francia, BBL Alemania, Lega A Italia
+• Premier League, La Liga, Bundesliga, Serie A, Ligue 1
+• Champions League, Europa League, Championship, La Liga 2, NFL
+• Revisión cada 30 minutos
+• Analiza cientos de partidos diariamente
+
+🧠 INTELIGENCIA ARTIFICIAL PROFESIONAL
+
+✅ Cálculo de Probabilidades Reales
+   - Convierte cuotas en probabilidades implícitas
+   - Filtra solo picks con >52% probabilidad de acierto
+   - Rango óptimo de cuotas: 1.40 - 3.50
+
+✅ Detección de VIG (Margen del Bookie)
+   - Identifica cuotas con bajo margen (<12%)
+   - Encuentra las mejores oportunidades de valor
+   - Alerta cuando VIG es menor a 8% (óptimo)
+
+✅ Movimientos Sharp (Dinero Profesional)
+   - Detecta cuando apostadores profesionales mueven líneas
+   - Analiza cambios de cuota >6% en ventanas de 3 horas
+   - Sigue el dinero inteligente
+
+✅ Análisis de Consenso
+   - Compara cuotas de múltiples casas de apuestas
+   - Detecta outliers (diferencias >8%)
+   - Identifica discrepancias en el mercado
+
+✅ CLV (Closing Line Value)
+   - Compara tu cuota vs cierre del mercado
+   - Indicador #1 de rentabilidad a largo plazo
+   - Predicción de valor futuro
+
+📈 GESTIÓN DE BANKROLL CIENTÍFICA
+
+• Criterio de Kelly (versión fraccionada 0.25x)
+• Fixed Percentage (2% por defecto)
+• Cálculo automático de stake sugerido
+• Protección contra overbetting
+• Optimización de crecimiento del bankroll
+
+💬 FORMATO DE ALERTAS
+
+Ejemplo real de alerta que recibes:
+
+🎯 VALUE BET DETECTADA
+
+🏀 Lakers vs Warriors
+📊 Lakers +5.5 @ 1.95
+🎲 Probabilidad: 54.2%
+💰 Apostar: $40 (2% del bankroll)
+
+📈 ANÁLISIS PROFESIONAL:
+✅ VIG: 8.2% (bajo - óptimo)
+✅ Sharp move: +6.3% (dinero pro detectado)
+✅ CLV esperado: +2.1% (valor confirmado)
+✅ Consenso: Outlier +8.5% (oportunidad única)
+
+⏰ Partido en 3h 25min
+🏠 Sitio recomendado: [casa de apuestas]
+
+═══════════════════════════════════════════════════

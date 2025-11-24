@@ -1,0 +1,136 @@
+═══════════════════════════════════════════════════
+📄 PARTE 4: RESUMEN EJECUTIVO
+═══════════════════════════════════════════════════
+
+🤖 VALUEBETS BOT - QUÉ ES
+
+Bot de Telegram con inteligencia artificial que encuentra automáticamente las mejores oportunidades de apuestas deportivas (value bets) en 16 ligas diferentes, 24 horas al día, 7 días a la semana.
+
+---
+
+🎯 PROBLEMA QUE RESUELVE
+
+❌ Análisis manual lleva horas
+❌ Imposible comparar todas las casas
+❌ Se pierden oportunidades
+❌ No sabes cuánto apostar
+❌ Difícil seguir dinero profesional
+
+✅ El bot hace TODO automáticamente
+
+---
+
+⚡ FUNCIONALIDADES CLAVE
+
+1. MONITOREO 24/7
+   • 16 ligas: NBA, Fútbol Europa, NFL
+   • Cientos de partidos diarios
+   • Chequeo cada 30 minutos
+
+2. ANÁLISIS PROFESIONAL IA
+   • Probabilidades reales
+   • Detección sharp money
+   • VIG y consenso
+   • CLV predicción
+
+3. GESTIÓN BANKROLL
+   • Kelly Criterion
+   • Fixed percentage
+   • Stake sugerido
+
+4. ALERTAS INSTANTÁNEAS
+   • Formato profesional
+   • Todo el análisis incluido
+   • Push notifications
+
+5. SISTEMA REFERIDOS (Premium)
+   • Comisión 10% directa
+   • Reparto semanal TOP 3
+   • Ingresos ilimitados
+
+---
+
+💰 MODELOS DE NEGOCIO
+
+🆓 GRATIS: 1 pick/día, análisis completo, sin límite de tiempo
+
+💎 PREMIUM: 5 picks/día, bankroll, referidos, 20% de ganancias semanales
+
+---
+
+👥 PARA QUIÉN ES
+
+✅ Apostadores principiantes (aprenden de picks profesionales)
+✅ Apostadores intermedios (ahorran tiempo de análisis)
+✅ Apostadores avanzados (confirman sus análisis)
+✅ Emprendedores (sistema de referidos)
+✅ Cualquiera que quiera ganar en apuestas
+
+❌ NO es para: Gente que busca "apuestas seguras" o "tips gratuitos sin criterio"
+
+---
+
+🔢 DATOS TÉCNICOS
+
+• 16 deportes/ligas monitoreadas
+• 500+ requests API mensuales
+• Filtros: Prob >52%, Cuotas 1.40-3.50, VIG <12%
+• Análisis multi-dimensional (5 métricas)
+• Base de datos Supabase
+• Deployed en Render (99.9% uptime)
+
+---
+
+🚀 PROPUESTA DE VALOR ÚNICA
+
+"El único bot que combina análisis profesional de value bets + gestión de bankroll científica + sistema de referidos rentable, todo automático en Telegram"
+
+---
+
+📊 CASOS DE USO
+
+1. Usuario Gratis: 
+   Recibe 1 pick diario → Apuesta → Sigue resultados → Upgrade si funciona
+
+2. Usuario Premium:
+   5 picks/día → Gestión bankroll → Invita amigos → Gana comisiones → Reduce/elimina costo
+
+3. Referidor TOP:
+   Foco en referidos → Gana comisiones directas + reparto semanal → Ingresos pasivos
+
+---
+
+🎯 CALL TO ACTION
+
+1. Entra al bot: [t.me/tubot]
+2. /start para registrarte
+3. Recibe tu primer pick GRATIS hoy
+4. Evalúa resultados 1-2 semanas
+5. Upgrade a premium cuando veas valor
+6. Invita amigos para ganar comisiones
+
+---
+
+💡 VENTAJAS COMPETITIVAS
+
+✅ GRATIS real (no trial de 7 días)
+✅ Análisis IA profesional (no tips aleatorios)
+✅ Gestión bankroll incluida
+✅ Sistema referidos integrado
+✅ 16 ligas (más que cualquier competidor)
+✅ Solo pagas si ganas (premium)
+
+---
+
+🏆 BENEFICIOS FINALES
+
+• Ahorra horas de análisis diario
+• Mejora tu winrate con picks profesionales
+• Protege tu capital con gestión científica
+• Genera ingresos extra con referidos
+• Aprende cómo funcionan las apuestas profesionales
+• Acceso a análisis que cuestan $100+/mes en otros servicios
+
+═══════════════════════════════════════════════════
+EMPIEZA GRATIS HOY: [t.me/tubot]
+═══════════════════════════════════════════════════

@@ -1,0 +1,65 @@
+═══════════════════════════════════════════════════
+👥 PARTE 2: SISTEMA DE REFERIDOS
+═══════════════════════════════════════════════════
+
+💎 GANA DINERO INVITANDO AMIGOS
+
+🎁 SISTEMA DE COMISIONES
+
+Cuando alguien se registra con tu código de referido:
+
+1️⃣ COMISIÓN DIRECTA (10%)
+   • Ganas el 10% cuando tu referido activa Premium
+   • Ejemplo: Tu amigo paga 50€ → Ganas 5€
+   • Acumulativo sin límite
+   • Pago inmediato a tu saldo
+
+2️⃣ REPARTO SEMANAL (Del 20% de ganancias)
+   
+   El bot cobra 20% de las ganancias semanales de TODOS los premium.
+   
+   📊 Ese 20% se divide así:
+   • 50% → Mejoras y mantenimiento del bot
+   • 50% → Reparto entre TOP 3 referidores
+   
+   🏆 RANKING SEMANAL:
+   • 🥇 1er lugar: 50% del fondo
+   • 🥈 2do lugar: 30% del fondo
+   • 🥉 3er lugar: 20% del fondo
+
+📱 CÓMO FUNCIONA
+
+1. Envía /mi_codigo en el bot
+2. Recibes tu link único: t.me/bot?start=TU_CODIGO
+3. Comparte el link con amigos
+4. Cuando se registren con tu link, quedan como tus referidos
+5. Si activan Premium → Ganas comisión instantánea
+6. Apareces en el ranking semanal
+7. TOP 3 referidores reciben reparto extra cada lunes
+
+💰 COMANDOS DE REFERIDOS
+
+/mi_codigo - Ver tu código y link personal
+/mis_referidos - Lista de todos tus referidos
+/balance - Ver saldo acumulado de comisiones
+/mis_comisiones - Estadísticas detalladas
+
+📊 EJEMPLO REAL
+
+Semana 1: Invitas 5 amigos
+• 3 activan Premium (50€ c/u)
+• Ganas: 3 × 5€ = 15€ comisión directa
+• Quedas 2do en ranking
+• Fondo semanal: 200€ (50% de 400€ cobrados)
+• Tu parte: 30% de 200€ = 60€
+
+TOTAL SEMANA: 75€ 💰
+
+🎯 SIN LÍMITES
+
+• No hay tope de referidos
+• Comisión vitalicia (mientras ellos sean premium)
+• Ranking se resetea cada semana
+• Todos pueden ganar
+
+═══════════════════════════════════════════════════
