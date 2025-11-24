@@ -889,9 +889,9 @@ class VidaNuevaBot:
                 parse_mode='Markdown'
             )
             
-            # Ejecutar scraping
+            # Ejecutar scraping (SIN límite - buscar TODO lo disponible)
             logger.info(f"Buscando trabajos: {keywords} en {location}")
-            result = search_jobs(keywords, location, max_results=50)
+            result = search_jobs(keywords, location, max_results=200)  # Aumentado a 200
             
             # El scraper ahora devuelve un dict con exact_matches y location_only
             exact_jobs = result.get('exact_matches', []) if isinstance(result, dict) else result
@@ -1366,8 +1366,8 @@ class VidaNuevaBot:
                     logger.info(f"Verificando búsqueda #{search_id}: {search_type} - {keywords} en {location}")
                     
                     if search_type == 'trabajo':
-                        # Buscar trabajos
-                        result = search_jobs(keywords, location, max_results=10)
+                        # Buscar trabajos (alertas automáticas)
+                        result = search_jobs(keywords, location, max_results=50)  # Aumentado para alertas
                         
                         # Manejar nuevo formato con exact_matches y location_only
                         exact_jobs = result.get('exact_matches', []) if isinstance(result, dict) else result

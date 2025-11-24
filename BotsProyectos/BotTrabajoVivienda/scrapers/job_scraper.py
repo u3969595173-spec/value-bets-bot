@@ -1306,9 +1306,9 @@ class JobScraper:
                 elif location_match:
                     location_only_jobs.append(job)  # Solo ubicación correcta
         
-        # Devolver ambos grupos para que el bot decida qué mostrar
+        # Devolver ambos grupos (SIN límite en exact_matches, enviar TODO lo encontrado)
         result = {
-            'exact_matches': exact_match_jobs,
+            'exact_matches': exact_match_jobs,  # TODOS los trabajos exactos
             'location_only': location_only_jobs[:20]  # Limitar a 20 para no saturar
         }
         
@@ -1320,5 +1320,5 @@ class JobScraper:
 def search_jobs(keywords, location="España", max_results=50):
     """Función helper para buscar trabajos en TODAS las fuentes"""
     scraper = JobScraper()
-    return scraper.scrape_all(keywords, location, max_results // 10)
+    return scraper.scrape_all(keywords, location, max_results)  # Pasar límite completo
 
