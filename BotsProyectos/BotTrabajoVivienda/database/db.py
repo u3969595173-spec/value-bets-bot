@@ -217,3 +217,110 @@ def get_user_searches(user_id):
     finally:
         cursor.close()
         conn.close()
+
+
+def save_jobs(jobs):
+    """Guardar múltiples trabajos en la base de datos"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    saved_count = 0
+    
+    try:
+        for job in jobs:
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO jobs (title, company, location, salary, description, url, source, posted_date, special_tags)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (url) DO NOTHING
+                    """,
+                    (
+                        job['title'],
+                        job['company'],
+                        job['location'],
+                        job.get('salary'),
+                        job.get('description', ''),
+                        job['url'],
+                        job['source'],
+                        job.get('posted_date'),
+                        job.get('special_tags', []) if job.get('special_tags') else None
+                    )
+                )
+                if cursor.rowcount > 0:
+                    saved_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error guardando trabajo individual: {e}")
+                continue
+        
+        conn.commit()
+        logger.info(f"✅ Guardados {saved_count} trabajos nuevos de {len(jobs)}")
+        return saved_count
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error guardando trabajos: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_recent_jobs(limit=20):
+    """Obtener trabajos recientes"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT * FROM jobs 
+            ORDER BY scraped_at DESC 
+            LIMIT %s
+            """,
+            (limit,)
+        )
+        jobs = cursor.fetchall()
+        return [dict(j) for j in jobs]
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo trabajos: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def search_jobs_db(keywords, location=None, special_tags=None, limit=20):
+    """Buscar trabajos en la base de datos"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = """
+            SELECT * FROM jobs 
+            WHERE (title ILIKE %s OR description ILIKE %s)
+        """
+        params = [f'%{keywords}%', f'%{keywords}%']
+        
+        if location:
+            query += " AND location ILIKE %s"
+            params.append(f'%{location}%')
+        
+        if special_tags:
+            query += " AND special_tags @> %s::jsonb"
+            params.append(special_tags)
+        
+        query += " ORDER BY scraped_at DESC LIMIT %s"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        jobs = cursor.fetchall()
+        return [dict(j) for j in jobs]
+        
+    except Exception as e:
+        logger.error(f"❌ Error buscando trabajos: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
