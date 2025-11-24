@@ -45,39 +45,39 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     
     target_alert = None
     
-    # Si el event_id empieza con "hist_", buscar en bet_history del usuario
-    if event_id.startswith('hist_'):
-        logger.info(f"🔍 Buscando {event_id} en bet_history (total: {len(user.bet_history)} apuestas)")
-        for bet in user.bet_history:
-            if bet.get('event_id') == event_id:
-                # Encontrada - permitir actualizar aunque ya esté verificada
-                target_alert = {
-                    'user_id': user_id,
-                    'event_id': event_id,
-                    'stake': bet.get('stake', 0),
-                    'odds': bet.get('odds', 1.0),
-                    'selection': bet.get('selection', 'N/A'),
-                    'point': bet.get('point'),
-                    'alert_id': f"{user_id}_{event_id}",
-                    'current_status': bet.get('status', 'pending')
-                }
-                logger.info(f"✅ Apuesta encontrada: {event_id} (status actual: {bet.get('status')})")
-                break
-        
-        if not target_alert:
-            logger.error(f"❌ No se encontró {event_id} en bet_history")
-            # Debug: mostrar todos los event_ids
-            event_ids = [b.get('event_id') for b in user.bet_history]
-            logger.info(f"📋 Event IDs disponibles: {event_ids}")
-    else:
-        # Buscar en alerts_tracker para alertas nuevas
+    # SIEMPRE buscar primero en bet_history del usuario
+    logger.info(f"🔍 Buscando {event_id} en bet_history (total: {len(user.bet_history)} apuestas)")
+    for bet in user.bet_history:
+        if bet.get('event_id') == event_id:
+            # Encontrada - permitir actualizar aunque ya esté verificada
+            target_alert = {
+                'user_id': user_id,
+                'event_id': event_id,
+                'stake': bet.get('stake', 0),
+                'odds': bet.get('odds', 1.0),
+                'selection': bet.get('selection', 'N/A'),
+                'point': bet.get('point'),
+                'alert_id': f"{user_id}_{event_id}",
+                'current_status': bet.get('status', 'pending')
+            }
+            logger.info(f"✅ Apuesta encontrada en bet_history: {event_id} (status: {bet.get('status')})")
+            break
+    
+    # Si no está en bet_history, buscar en alerts_tracker
+    if not target_alert:
+        logger.info(f"🔍 No encontrada en bet_history, buscando en alerts_tracker...")
         pending_alerts = tracker.get_pending_alerts(hours_old=168)
         for alert in pending_alerts:
             if str(alert['user_id']) == str(user_id) and alert['event_id'] == event_id:
                 target_alert = alert
+                logger.info(f"✅ Apuesta encontrada en alerts_tracker")
                 break
     
     if not target_alert:
+        logger.error(f"❌ No se encontró {event_id} en ningún lado")
+        # Debug: mostrar todos los event_ids
+        event_ids = [b.get('event_id') for b in user.bet_history]
+        logger.info(f"📋 Event IDs en bet_history: {event_ids[:10]}")
         await query.edit_message_text(
             f"❌ No se encontró alerta pendiente\\n"
             f"Event: {event_id}"
