@@ -189,7 +189,8 @@ if __name__ == '__main__':
         exit(1)
     
     # Esperar 60 segundos en Render para que instancia anterior termine
-    if os.getenv('RENDER'):
+    # Render siempre tiene la variable RENDER_SERVICE_NAME
+    if os.getenv('RENDER_SERVICE_NAME'):
         import time
         logger.info("⏳ RENDER: Esperando 60s para que instancia anterior termine...")
         time.sleep(60)
