@@ -57,7 +57,9 @@ class VidaNuevaBot:
             "Te ayudo a encontrar:\n"
             "💼 **Trabajo** - 11 portales de empleo\n"
             "🏠 **Vivienda** - 6 portales inmobiliarios\n\n"
-            "Todo en tiempo real y sin complicaciones.\n\n"
+            "Todo en tiempo real.\n\n"
+            "💎 **Suscripción: 10€/mes**\n"
+            "Para activar tu cuenta, contacta con @tu_usuario\n\n"
             "Selecciona una opción:"
         )
         
@@ -115,8 +117,7 @@ class VidaNuevaBot:
                 "Aún no tienes búsquedas guardadas.\n\n"
                 "Cuando crees una búsqueda, te enviaré alertas automáticas "
                 "cada vez que aparezca una nueva oferta.\n\n"
-                "💡 **Plan Gratis:** 3 búsquedas activas\n"
-                "💎 **Plan Premium:** 20 búsquedas activas + alertas instantáneas"
+                "💎 **Suscripción:** 10€/mes - Búsquedas ilimitadas"
             )
         
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -132,10 +133,12 @@ class VidaNuevaBot:
             "**Fuentes de datos:**\n"
             "💼 Trabajo: 11 sitios (Indeed, InfoJobs, Milanuncios...)\n"
             "🏠 Vivienda: 6 sitios (Idealista, Fotocasa, Badi...)\n\n"
+            "**Precio:**\n"
+            "💎 **10€/mes** - Acceso completo sin límites\n\n"
             "**Comandos:**\n"
             "/start - Menú principal\n"
             "/help - Esta ayuda\n\n"
-            "**Soporte:** @tu_usuario"
+            "**Para suscribirte:** @tu_usuario"
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
     
