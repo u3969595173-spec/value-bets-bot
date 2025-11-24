@@ -55,12 +55,9 @@ class VidaNuevaBot:
             f"¡Hola {user.first_name}! 👋\n\n"
             "Soy el Bot **Vida Nueva** 🚀\n\n"
             "Te ayudo a encontrar:\n"
-            "💼 **Trabajo** - Con filtros especiales\n"
-            "🏠 **Vivienda** - Sin requisitos imposibles\n\n"
-            "**Ventajas:**\n"
-            "✅ Alertas en 30 segundos\n"
-            "✅ Filtros únicos (sin papeles, sin nómina)\n"
-            "✅ Scraping de 35 plataformas\n\n"
+            "💼 **Trabajo** - 11 portales de empleo\n"
+            "🏠 **Vivienda** - 6 portales inmobiliarios\n\n"
+            "Todo en tiempo real y sin complicaciones.\n\n"
             "Selecciona una opción:"
         )
         
@@ -71,15 +68,11 @@ class VidaNuevaBot:
         msg = (
             "💼 **BÚSQUEDA DE TRABAJO**\n\n"
             "Escribe tu búsqueda en este formato:\n\n"
-            "`trabajo: [puesto], [ciudad], [filtros]`\n\n"
+            "`trabajo: [puesto], [ciudad]`\n\n"
             "**Ejemplos:**\n"
-            "• `trabajo: camarero, Madrid, sin papeles`\n"
+            "• `trabajo: camarero, Madrid`\n"
             "• `trabajo: limpieza, Barcelona`\n"
-            "• `trabajo: construcción, Valencia, con contrato`\n\n"
-            "**Filtros disponibles:**\n"
-            "🔸 `sin papeles` - Trabajos que contratan sin NIE\n"
-            "🔸 `con contrato` - Para arraigo social\n"
-            "🔸 `urgente` - Incorporación inmediata\n\n"
+            "• `trabajo: construcción, Valencia`\n\n"
             "Buscaré en Indeed, Infojobs, Jooble y más..."
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -89,15 +82,11 @@ class VidaNuevaBot:
         msg = (
             "🏠 **BÚSQUEDA DE VIVIENDA**\n\n"
             "Escribe tu búsqueda en este formato:\n\n"
-            "`vivienda: [tipo], [ciudad], [precio], [filtros]`\n\n"
+            "`vivienda: [tipo], [ciudad]`\n\n"
             "**Ejemplos:**\n"
-            "• `vivienda: habitación, Madrid, 500`\n"
-            "• `vivienda: piso, Barcelona, 800, sin fianza`\n"
-            "• `vivienda: estudio, Valencia, 600, sin nómina`\n\n"
-            "**Filtros disponibles:**\n"
-            "🔸 `sin nómina` - No piden contrato laboral\n"
-            "🔸 `sin fianza` - Sin depósito inicial\n"
-            "🔸 `acepta extranjeros` - Sin discriminación\n\n"
+            "• `vivienda: habitacion, Madrid`\n"
+            "• `vivienda: piso, Barcelona`\n"
+            "• `vivienda: estudio, Valencia`\n\n"
             "Buscaré en Idealista, Fotocasa, Badi y más..."
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -137,15 +126,15 @@ class VidaNuevaBot:
         msg = (
             "ℹ️ **CÓMO FUNCIONA**\n\n"
             "1️⃣ Selecciona qué buscas (trabajo o vivienda)\n"
-            "2️⃣ Escribe tu búsqueda con filtros\n"
-            "3️⃣ Yo escaneo 35 plataformas cada 30 minutos\n"
-            "4️⃣ Te aviso INSTANTÁNEAMENTE cuando hay algo nuevo\n\n"
+            "2️⃣ Escribe tu búsqueda: `trabajo: camarero, Madrid`\n"
+            "3️⃣ Yo escaneo múltiples plataformas en tiempo real\n"
+            "4️⃣ Te muestro los mejores resultados al instante\n\n"
+            "**Fuentes de datos:**\n"
+            "💼 Trabajo: 11 sitios (Indeed, InfoJobs, Milanuncios...)\n"
+            "🏠 Vivienda: 6 sitios (Idealista, Fotocasa, Badi...)\n\n"
             "**Comandos:**\n"
             "/start - Menú principal\n"
             "/help - Esta ayuda\n\n"
-            "**Planes:**\n"
-            "🆓 Gratis: 3 búsquedas, alertas cada hora\n"
-            "💎 Premium 15€/mes: 20 búsquedas, alertas instantáneas\n\n"
             "**Soporte:** @tu_usuario"
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -179,24 +168,22 @@ class VidaNuevaBot:
         user_id = update.effective_user.id
         
         try:
-            # Parsear query: "trabajo: camarero, Madrid, sin papeles"
+            # Parsear query: "trabajo: camarero, Madrid"
             query_clean = query.replace("trabajo:", "").strip()
             parts = [p.strip() for p in query_clean.split(",")]
             
             if len(parts) < 1:
-                await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `trabajo: camarero, Madrid`")
+                await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `trabajo: camarero, Madrid`", parse_mode='Markdown')
                 return
             
             keywords = parts[0]
             location = parts[1] if len(parts) > 1 else "España"
-            filters = parts[2:] if len(parts) > 2 else []
             
             # Mensaje de inicio
             status_msg = await update.message.reply_text(
                 f"🔍 **BUSCANDO TRABAJO**\n\n"
                 f"💼 Puesto: {keywords}\n"
-                f"📍 Ubicación: {location}\n"
-                f"🔧 Filtros: {', '.join(filters) if filters else 'ninguno'}\n\n"
+                f"📍 Ubicación: {location}\n\n"
                 f"⏳ Escaneando 11 portales de empleo...",
                 parse_mode='Markdown'
             )
@@ -210,36 +197,9 @@ class VidaNuevaBot:
                 saved_count = save_jobs(jobs)
                 logger.info(f"Guardados {saved_count} trabajos nuevos")
             
-            # Aplicar filtros especiales
-            if filters:
-                filtered_jobs = []
-                for job in jobs:
-                    tags_lower = [t.lower() for t in (job.get('special_tags') or [])]
-                    desc_lower = (job.get('description') or '').lower()
-                    title_lower = job['title'].lower()
-                    
-                    match = True
-                    for f in filters:
-                        f_lower = f.lower()
-                        if 'sin papeles' in f_lower or 'sin nie' in f_lower:
-                            if 'sin_papeles' not in tags_lower and 'sin papeles' not in desc_lower and 'sin nie' not in desc_lower:
-                                match = False
-                        elif 'urgente' in f_lower:
-                            if 'urgente' not in tags_lower and 'urgente' not in desc_lower and 'urgente' not in title_lower:
-                                match = False
-                        elif 'sin experiencia' in f_lower:
-                            if 'sin_experiencia' not in tags_lower and 'sin experiencia' not in desc_lower:
-                                match = False
-                    
-                    if match:
-                        filtered_jobs.append(job)
-                
-                jobs = filtered_jobs
-            
             # Guardar búsqueda
             try:
-                filters_json = json.dumps(filters) if filters else None
-                search_id = save_search(user_id, 'trabajo', keywords, location, filters_json)
+                search_id = save_search(user_id, 'trabajo', keywords, location, None)
                 logger.info(f"Búsqueda guardada con ID: {search_id}")
             except Exception as e:
                 logger.error(f"Error guardando búsqueda: {e}")
@@ -316,78 +276,38 @@ class VidaNuevaBot:
         user_id = update.effective_user.id
         
         try:
-            # Parsear query: "vivienda: habitacion, Madrid, 500, sin nomina"
+            # Parsear query: "vivienda: habitacion, Madrid"
             query_clean = query.replace("vivienda:", "").strip()
             parts = [p.strip() for p in query_clean.split(",")]
             
             if len(parts) < 1:
-                await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `vivienda: habitacion, Madrid, 500`")
+                await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `vivienda: habitacion, Madrid`", parse_mode='Markdown')
                 return
             
             keywords = parts[0]
             location = parts[1] if len(parts) > 1 else "madrid"
             
-            # Extraer precio máximo
-            max_price = None
-            filters = []
-            for part in parts[2:]:
-                # Intentar extraer precio
-                price_match = re.search(r'\d+', part)
-                if price_match and not max_price:
-                    max_price = int(price_match.group())
-                else:
-                    filters.append(part)
-            
             # Mensaje de inicio
             status_msg = await update.message.reply_text(
                 f"🏠 **BUSCANDO VIVIENDA**\n\n"
                 f"🏘️ Tipo: {keywords}\n"
-                f"📍 Ubicación: {location}\n"
-                f"💰 Precio máx: {max_price}€/mes" if max_price else "" + "\n"
-                f"🔧 Filtros: {', '.join(filters) if filters else 'ninguno'}\n\n"
+                f"📍 Ubicación: {location}\n\n"
                 f"⏳ Escaneando 6 portales de vivienda...",
                 parse_mode='Markdown'
             )
             
             # Ejecutar scraping
-            logger.info(f"Buscando viviendas: {keywords} en {location}, max {max_price}")
-            listings = search_housing(keywords, location, max_price, max_results=40)
+            logger.info(f"Buscando viviendas: {keywords} en {location}")
+            listings = search_housing(keywords, location, None, max_results=40)
             
             # Guardar en base de datos
             if listings:
                 saved_count = save_housing(listings)
                 logger.info(f"Guardadas {saved_count} viviendas nuevas")
             
-            # Aplicar filtros especiales
-            if filters:
-                filtered_listings = []
-                for listing in listings:
-                    tags_lower = [t.lower() for t in (listing.get('special_tags') or [])]
-                    desc_lower = (listing.get('description') or '').lower()
-                    title_lower = listing['title'].lower()
-                    
-                    match = True
-                    for f in filters:
-                        f_lower = f.lower()
-                        if 'sin nomina' in f_lower or 'sin nómina' in f_lower:
-                            if 'sin_nomina' not in tags_lower and 'sin nomina' not in desc_lower:
-                                match = False
-                        elif 'sin fianza' in f_lower:
-                            if 'sin_fianza' not in tags_lower and 'sin fianza' not in desc_lower:
-                                match = False
-                        elif 'extranjeros' in f_lower or 'acepta extranjeros' in f_lower:
-                            if 'acepta_extranjeros' not in tags_lower and 'extranjeros' not in desc_lower:
-                                match = False
-                    
-                    if match:
-                        filtered_listings.append(listing)
-                
-                listings = filtered_listings
-            
             # Guardar búsqueda
             try:
-                filters_json = json.dumps({'filters': filters, 'max_price': max_price}) if (filters or max_price) else None
-                search_id = save_search(user_id, 'vivienda', keywords, location, filters_json)
+                search_id = save_search(user_id, 'vivienda', keywords, location, None)
                 logger.info(f"Búsqueda vivienda guardada con ID: {search_id}")
             except Exception as e:
                 logger.error(f"Error guardando búsqueda vivienda: {e}")
@@ -397,12 +317,11 @@ class VidaNuevaBot:
                 await status_msg.edit_text(
                     f"❌ **NO SE ENCONTRARON RESULTADOS**\n\n"
                     f"🏘️ Tipo: {keywords}\n"
-                    f"📍 {location}\n"
-                    f"💰 Máx: {max_price}€/mes\n\n" if max_price else "\n\n"
+                    f"📍 {location}\n\n"
                     f"💡 **Sugerencias:**\n"
-                    f"• Aumenta el presupuesto\n"
-                    f"• Amplía la zona de búsqueda\n"
-                    f"• Prueba 'habitacion' en vez de 'piso'\n\n"
+                    f"• Prueba con otra ciudad\n"
+                    f"• Cambia el tipo (ej: 'habitacion' en vez de 'piso')\n"
+                    f"• Amplía la zona de búsqueda\n\n"
                     f"✅ Tu búsqueda está guardada. Te avisaré cuando encuentre ofertas.",
                     parse_mode='Markdown'
                 )
@@ -412,8 +331,7 @@ class VidaNuevaBot:
             result_msg = (
                 f"✅ **ENCONTRADAS {len(listings)} VIVIENDAS**\n\n"
                 f"🏘️ {keywords}\n"
-                f"📍 {location}\n"
-                f"💰 Hasta {max_price}€/mes\n\n" if max_price else "\n\n"
+                f"📍 {location}\n\n"
                 f"📋 Mostrando los primeros 5 resultados:\n"
             )
             await status_msg.edit_text(result_msg, parse_mode='Markdown')
