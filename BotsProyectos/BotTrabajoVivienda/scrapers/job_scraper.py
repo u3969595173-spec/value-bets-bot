@@ -1283,14 +1283,18 @@ class JobScraper:
                 location_match = False
                 if location.lower() not in ['españa', 'spain', 'nacional', '']:
                     job_location = job['location'].lower()
-                    # DEBE coincidir con la ciudad específica o área metropolitana
-                    # NO acepta ubicaciones genéricas como "España" o vacías
-                    location_match = (
-                        any(loc in job_location for loc in locations_lower) or
-                        'remoto' in job_location or 
-                        'teletrabajo' in job_location or
-                        'a distancia' in job_location
-                    )
+                    
+                    # Si la ubicación está en el campo location
+                    if any(loc in job_location for loc in locations_lower):
+                        location_match = True
+                    # Si es remoto/teletrabajo
+                    elif 'remoto' in job_location or 'teletrabajo' in job_location or 'a distancia' in job_location:
+                        location_match = True
+                    # FALLBACK: Si no pudo extraer ubicación, buscar en título/descripción
+                    elif job_location == 'no especificada':
+                        # Buscar la ciudad en el texto del trabajo
+                        if any(loc in job_text for loc in locations_lower):
+                            location_match = True
                 else:
                     # Si busca en toda España, acepta todo
                     location_match = True
