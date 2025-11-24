@@ -310,6 +310,10 @@ class ValueBotMonitor:
 
 💎 **Tu Estado:** {'Premium ✅ (Ilimitado)' if user.is_premium_active() else 'Free (1 pick/día)'}
 
+📈 **Comandos útiles:**
+• /stats_pro - Estadísticas profesionales con ROI
+• /referidos - Programa de afiliados
+
 📞 **Soporte/Pagos:** +34 936 07 56 41
 
 👇 Usa los botones para navegar:
@@ -1673,6 +1677,19 @@ Tu saldo sigue disponible.
         self.telegram_app.add_handler(CommandHandler("asignar_referido", self.handle_asignar_referido))
         self.telegram_app.add_handler(CommandHandler("limpiar_usuarios", self.handle_limpiar_usuarios))
         
+        # NUEVO: Comandos de verificación manual y estadísticas mejoradas
+        from commands.verification_commands import (
+            cmd_pendientes, cmd_stats_pro, 
+            handle_verification_callback, show_full_history_callback, back_to_stats_callback
+        )
+        from telegram.ext import CallbackQueryHandler
+        
+        self.telegram_app.add_handler(CommandHandler("pendientes", cmd_pendientes))
+        self.telegram_app.add_handler(CommandHandler("stats_pro", cmd_stats_pro))
+        self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
+        self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
+        self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
+        
         # Handler para mensajes de botones
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_button_message))
         
@@ -2277,6 +2294,42 @@ Tu saldo sigue disponible.
             
             # Agregar a sent_alerts para evitar duplicados
             alert_key = f"{user.chat_id}_{candidate.get('id', '')}_{candidate.get('selection', '')}"
+            
+            # NUEVO: Enviar copia al admin con botones de verificación manual
+            if CHAT_ID and str(user.chat_id) != str(CHAT_ID):
+                try:
+                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                    
+                    # Obtener alert_id del tracker para los botones
+                    # Generar el mismo ID que usa el tracker
+                    import time
+                    alert_id = f"{user.chat_id}_{candidate.get('id', '')}_{time.time()}"
+                    
+                    admin_msg = f"📊 **ALERTA ENVIADA A USUARIO**\n\n"
+                    admin_msg += f"👤 Usuario: {user.username} (ID: {user.chat_id})\n"
+                    admin_msg += f"🎯 Pick: {candidate.get('selection', '')}\n"
+                    admin_msg += f"💰 Cuota: {final_odds:.2f}\n"
+                    admin_msg += f"💵 Stake: {stake:.2f}€\n"
+                    admin_msg += f"🏦 Bank actual: {user.dynamic_bank:.2f}€\n\n"
+                    admin_msg += f"Partido: {candidate.get('home_team', '')} vs {candidate.get('away_team', '')}\n"
+                    admin_msg += f"Hora: {candidate.get('commence_time', '')}\n\n"
+                    admin_msg += f"⬇️ **Marcar resultado cuando termine el partido:**"
+                    
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("✅ Ganó", callback_data=f"verify_won_{user.chat_id}_{candidate.get('id', '')}"),
+                            InlineKeyboardButton("❌ Perdió", callback_data=f"verify_lost_{user.chat_id}_{candidate.get('id', '')}")
+                        ],
+                        [
+                            InlineKeyboardButton("🔄 Push (Empate)", callback_data=f"verify_push_{user.chat_id}_{candidate.get('id', '')}")
+                        ]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await self.notifier.send_message(CHAT_ID, admin_msg, reply_markup=reply_markup)
+                    logger.info(f"📤 Copia con botones enviada al admin")
+                except Exception as e:
+                    logger.error(f"Error enviando copia al admin: {e}")
             self.sent_alerts.add(alert_key)
             
             # Registrar apuesta en el usuario para tracking de banco dinámico

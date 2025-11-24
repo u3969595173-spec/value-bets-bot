@@ -13,12 +13,13 @@ class TelegramNotifier:
         if not self.token:
             print('Warning: TELEGRAM token not set; messages will not be sent to Telegram.')
 
-    async def send_message(self, chat_id_param: str, text: str = None):
+    async def send_message(self, chat_id_param: str, text: str = None, reply_markup=None):
         """Send a message to Telegram.
 
         Args:
             chat_id_param: Target chat ID (can be first or second param for compatibility)
             text: Message text (if None, assumes chat_id_param is the message and uses default chat_id)
+            reply_markup: Optional InlineKeyboardMarkup for buttons
         """
         # Handle both call styles: send_message(chat_id, text) and send_message(text)
         if text is None:
@@ -39,6 +40,10 @@ class TelegramNotifier:
             'text': text,
             'parse_mode': 'HTML'
         }
+        
+        # Agregar botones si se proporcionan
+        if reply_markup:
+            payload['reply_markup'] = reply_markup.to_dict() if hasattr(reply_markup, 'to_dict') else reply_markup
         
         try:
             response = requests.post(url, json=payload, timeout=10)
