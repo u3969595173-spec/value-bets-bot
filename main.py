@@ -1644,6 +1644,9 @@ Tu saldo sigue disponible.
                 cmd_pendientes, cmd_stats_pro, cmd_verificar_historial, cmd_limpiar_pendientes,
                 cmd_reset_historial, handle_verification_callback, show_full_history_callback, back_to_stats_callback
             )
+            from commands.admin_telegram_commands import (
+                cmd_pagar_referidos, cmd_saldo, handle_pagar_callback
+            )
             from telegram.ext import CallbackQueryHandler
             
             logger.info("✅ Registrando /pendientes...")
@@ -1660,11 +1663,20 @@ Tu saldo sigue disponible.
             logger.info("✅ Registrando /reset_historial...")
             self.telegram_app.add_handler(CommandHandler("reset_historial", cmd_reset_historial))
             self.telegram_app.add_handler(CommandHandler("reset", cmd_reset_historial))  # Alias corto
+            
+            # Comandos admin de referidos
+            logger.info("✅ Registrando /pagar_referidos...")
+            self.telegram_app.add_handler(CommandHandler("pagar_referidos", cmd_pagar_referidos))
+            self.telegram_app.add_handler(CommandHandler("pagar", cmd_pagar_referidos))  # Alias corto
+            logger.info("✅ Registrando /saldo...")
+            self.telegram_app.add_handler(CommandHandler("saldo", cmd_saldo))
+            
             logger.info("✅ Registrando handlers de callbacks...")
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
             self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
             self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
-            logger.info("✅ Comandos de verificación registrados correctamente")
+            self.telegram_app.add_handler(CallbackQueryHandler(handle_pagar_callback, pattern="^pagar_"))
+            logger.info("✅ Comandos de verificación y admin registrados correctamente")
         except ImportError as e:
             logger.error(f"❌ Error importando verification_commands: {e}")
         except Exception as e:
