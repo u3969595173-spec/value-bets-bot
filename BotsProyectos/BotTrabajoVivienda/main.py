@@ -13,7 +13,8 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     filters,
-    CallbackQueryHandler
+    CallbackQueryHandler,
+    ConversationHandler
 )
 from database import (
     init_database, get_or_create_user, save_search, get_user_searches, 
@@ -38,6 +39,10 @@ logger = logging.getLogger(__name__)
 # Configuración
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID', '5901833301'))  # Tu Telegram ID
+
+# Estados para conversaciones
+(TRABAJO_CIUDAD, TRABAJO_SALARIO, TRABAJO_CONTRATO, TRABAJO_EXPERIENCIA,
+ VIVIENDA_CIUDAD, VIVIENDA_PRECIO, VIVIENDA_HABITACIONES, VIVIENDA_M2) = range(8)
 
 
 class VidaNuevaBot:
@@ -74,49 +79,230 @@ class VidaNuevaBot:
         await update.message.reply_text(welcome_msg, reply_markup=reply_markup, parse_mode='Markdown')
     
     async def buscar_trabajo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler para buscar trabajo"""
+        """Iniciar búsqueda de trabajo - paso a paso"""
+        user_id = update.effective_user.id
+        
+        # Verificar si el usuario es premium
+        user_data = get_or_create_user(user_id, update.effective_user.username, update.effective_user.first_name)
+        
+        if not user_data.get('is_premium', False):
+            await update.message.reply_text(
+                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
+                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
+                "💎 **10€/mes** - Acceso completo\n\n"
+                "📞 **Contacta para activar:**\n"
+                "+34 936 07 56 41 (WhatsApp)\n\n"
+                f"🆔 Tu ID: `{user_id}`\n"
+                "Proporciona este ID al hacer el pago.",
+                parse_mode='Markdown'
+            )
+            return ConversationHandler.END
+        
+        # Iniciar conversación
+        context.user_data['search_type'] = 'trabajo'
+        context.user_data['search_data'] = {}
+        
         msg = (
             "💼 **BÚSQUEDA DE TRABAJO**\n\n"
-            "Escribe tu búsqueda con los detalles que quieras:\n\n"
-            "**Formato básico:**\n"
-            "`trabajo: [puesto], [ciudad]`\n\n"
-            "**Formato completo (opcional):**\n"
-            "`trabajo: [puesto], [ciudad], salario: [mínimo], contrato: [tipo], experiencia: [años]`\n\n"
-            "**Ejemplos:**\n"
-            "• `trabajo: camarero, Madrid`\n"
-            "• `trabajo: limpieza, Barcelona, salario: 1200`\n"
-            "• `trabajo: construcción, Valencia, salario: 1500, contrato: indefinido`\n"
-            "• `trabajo: cocinero, Madrid, experiencia: 0, salario: 1300`\n\n"
-            "**Opciones disponibles:**\n"
-            "• `salario: [cantidad]` - Salario mínimo en €/mes\n"
-            "• `contrato: [tipo]` - indefinido, temporal, media jornada\n"
-            "• `experiencia: [años]` - Años de experiencia (0 = sin experiencia)\n\n"
-            "Buscaré en Indeed, Infojobs, Jooble y más..."
+            "Voy a hacerte unas preguntas para buscar el trabajo perfecto.\n\n"
+            "**Pregunta 1 de 4:**\n"
+            "¿Qué puesto de trabajo buscas?\n\n"
+            "Ejemplos: camarero, limpieza, construcción, cocinero, etc."
         )
+        
         await update.message.reply_text(msg, parse_mode='Markdown')
+        return TRABAJO_CIUDAD
+    
+    async def trabajo_ciudad(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar puesto y preguntar ciudad"""
+        context.user_data['search_data']['puesto'] = update.message.text
+        
+        msg = (
+            "📍 **Pregunta 2 de 4:**\n"
+            "¿En qué ciudad?\n\n"
+            "Ejemplos: Madrid, Barcelona, Valencia, o escribe 'España' para buscar en todo el país."
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return TRABAJO_SALARIO
+    
+    async def trabajo_salario(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar ciudad y preguntar salario"""
+        context.user_data['search_data']['ciudad'] = update.message.text
+        
+        msg = (
+            "💰 **Pregunta 3 de 4:**\n"
+            "¿Salario mínimo que aceptas? (en €/mes)\n\n"
+            "Escribe solo el número o 'cualquiera' si no importa.\n"
+            "Ejemplos: 1200, 1500, cualquiera"
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return TRABAJO_CONTRATO
+    
+    async def trabajo_contrato(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar salario y preguntar tipo de contrato"""
+        salario_text = update.message.text.lower()
+        if salario_text != 'cualquiera':
+            try:
+                context.user_data['search_data']['salario'] = int(salario_text)
+            except:
+                pass
+        
+        msg = (
+            "📋 **Pregunta 4 de 4:**\n"
+            "¿Qué tipo de contrato prefieres?\n\n"
+            "Escribe 'cualquiera' si no importa.\n"
+            "Ejemplos: indefinido, temporal, media jornada, cualquiera"
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return TRABAJO_EXPERIENCIA
+    
+    async def trabajo_experiencia(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar contrato y realizar búsqueda"""
+        contrato_text = update.message.text.lower()
+        if contrato_text != 'cualquiera':
+            context.user_data['search_data']['contrato'] = contrato_text
+        
+        # Construir query
+        search_data = context.user_data['search_data']
+        query = f"trabajo: {search_data['puesto']}, {search_data['ciudad']}"
+        
+        if 'salario' in search_data:
+            query += f", salario: {search_data['salario']}"
+        if 'contrato' in search_data:
+            query += f", contrato: {search_data['contrato']}"
+        
+        # Realizar búsqueda
+        await self.process_job_search(update, context, query)
+        
+        return ConversationHandler.END
     
     async def buscar_vivienda(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler para buscar vivienda"""
+        """Iniciar búsqueda de vivienda - paso a paso"""
+        user_id = update.effective_user.id
+        
+        # Verificar si el usuario es premium
+        user_data = get_or_create_user(user_id, update.effective_user.username, update.effective_user.first_name)
+        
+        if not user_data.get('is_premium', False):
+            await update.message.reply_text(
+                "🔒 **SUSCRIPCIÓN REQUERIDA**\n\n"
+                "Para usar el bot necesitas activar tu suscripción Premium.\n\n"
+                "💎 **10€/mes** - Acceso completo\n\n"
+                "📞 **Contacta para activar:**\n"
+                "+34 936 07 56 41 (WhatsApp)\n\n"
+                f"🆔 Tu ID: `{user_id}`\n"
+                "Proporciona este ID al hacer el pago.",
+                parse_mode='Markdown'
+            )
+            return ConversationHandler.END
+        
+        # Iniciar conversación
+        context.user_data['search_type'] = 'vivienda'
+        context.user_data['search_data'] = {}
+        
         msg = (
             "🏠 **BÚSQUEDA DE VIVIENDA**\n\n"
-            "Escribe tu búsqueda con los detalles que quieras:\n\n"
-            "**Formato básico:**\n"
-            "`vivienda: [tipo], [ciudad]`\n\n"
-            "**Formato completo (opcional):**\n"
-            "`vivienda: [tipo], [ciudad], precio: [min-max], habitaciones: [num], m2: [tamaño]`\n\n"
-            "**Ejemplos:**\n"
-            "• `vivienda: habitacion, Madrid`\n"
-            "• `vivienda: piso, Barcelona, precio: 500-800`\n"
-            "• `vivienda: estudio, Valencia, precio: 400-600, m2: 30`\n"
-            "• `vivienda: habitacion, Madrid, precio: 300-500, habitaciones: 1`\n\n"
-            "**Opciones disponibles:**\n"
-            "• `precio: [min-max]` - Rango de precio en €/mes\n"
-            "• `habitaciones: [número]` - Número de habitaciones\n"
-            "• `m2: [tamaño]` - Metros cuadrados mínimos\n"
-            "• `baños: [número]` - Número de baños\n\n"
-            "Buscaré en Idealista, Fotocasa, Badi y más..."
+            "Voy a hacerte unas preguntas para encontrar tu vivienda ideal.\n\n"
+            "**Pregunta 1 de 4:**\n"
+            "¿Qué tipo de vivienda buscas?\n\n"
+            "Ejemplos: habitacion, piso, estudio, apartamento, etc."
         )
+        
         await update.message.reply_text(msg, parse_mode='Markdown')
+        return VIVIENDA_CIUDAD
+    
+    async def vivienda_ciudad(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar tipo y preguntar ciudad"""
+        context.user_data['search_data']['tipo'] = update.message.text
+        
+        msg = (
+            "📍 **Pregunta 2 de 4:**\n"
+            "¿En qué ciudad?\n\n"
+            "Ejemplos: Madrid, Barcelona, Valencia, Sevilla, etc."
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return VIVIENDA_PRECIO
+    
+    async def vivienda_precio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar ciudad y preguntar precio"""
+        context.user_data['search_data']['ciudad'] = update.message.text
+        
+        msg = (
+            "💰 **Pregunta 3 de 4:**\n"
+            "¿Cuánto puedes pagar al mes? (en €)\n\n"
+            "Puedes escribir:\n"
+            "• Un rango: 300-500\n"
+            "• Un máximo: 600\n"
+            "• 'cualquiera' si no importa"
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return VIVIENDA_HABITACIONES
+    
+    async def vivienda_habitaciones(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar precio y preguntar habitaciones"""
+        precio_text = update.message.text.lower()
+        if precio_text != 'cualquiera':
+            if '-' in precio_text:
+                try:
+                    precios = precio_text.split('-')
+                    context.user_data['search_data']['precio_min'] = int(precios[0])
+                    context.user_data['search_data']['precio_max'] = int(precios[1])
+                except:
+                    pass
+            else:
+                try:
+                    context.user_data['search_data']['precio_max'] = int(precio_text)
+                except:
+                    pass
+        
+        msg = (
+            "🛏️ **Pregunta 4 de 4:**\n"
+            "¿Cuántas habitaciones necesitas?\n\n"
+            "Escribe el número o 'cualquiera' si no importa.\n"
+            "Ejemplos: 1, 2, 3, cualquiera"
+        )
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return VIVIENDA_M2
+    
+    async def vivienda_m2(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Guardar habitaciones y realizar búsqueda"""
+        habitaciones_text = update.message.text.lower()
+        if habitaciones_text != 'cualquiera':
+            try:
+                context.user_data['search_data']['habitaciones'] = int(habitaciones_text)
+            except:
+                pass
+        
+        # Construir query
+        search_data = context.user_data['search_data']
+        query = f"vivienda: {search_data['tipo']}, {search_data['ciudad']}"
+        
+        if 'precio_min' in search_data and 'precio_max' in search_data:
+            query += f", precio: {search_data['precio_min']}-{search_data['precio_max']}"
+        elif 'precio_max' in search_data:
+            query += f", precio: 0-{search_data['precio_max']}"
+        
+        if 'habitaciones' in search_data:
+            query += f", habitaciones: {search_data['habitaciones']}"
+        
+        # Realizar búsqueda
+        await self.process_housing_search(update, context, query)
+        
+        return ConversationHandler.END
+    
+    async def cancelar(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Cancelar conversación"""
+        await update.message.reply_text(
+            "❌ Búsqueda cancelada.\n\n"
+            "Usa los botones del menú para empezar de nuevo."
+        )
+        return ConversationHandler.END
     
     async def mis_busquedas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Comando para ver búsquedas guardadas"""
@@ -891,12 +1077,42 @@ class VidaNuevaBot:
         """Iniciar el bot"""
         self.app = Application.builder().token(BOT_TOKEN).build()
         
+        # Conversation handler para búsqueda de trabajo
+        trabajo_conv = ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex(r'💼|[Tt]rabajo|TRABAJO'), self.buscar_trabajo)
+            ],
+            states={
+                TRABAJO_CIUDAD: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.trabajo_ciudad)],
+                TRABAJO_SALARIO: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.trabajo_salario)],
+                TRABAJO_CONTRATO: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.trabajo_contrato)],
+                TRABAJO_EXPERIENCIA: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.trabajo_experiencia)],
+            },
+            fallbacks=[CommandHandler("cancelar", self.cancelar)]
+        )
+        
+        # Conversation handler para búsqueda de vivienda
+        vivienda_conv = ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex(r'🏠|[Vv]ivienda|VIVIENDA'), self.buscar_vivienda)
+            ],
+            states={
+                VIVIENDA_CIUDAD: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.vivienda_ciudad)],
+                VIVIENDA_PRECIO: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.vivienda_precio)],
+                VIVIENDA_HABITACIONES: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.vivienda_habitaciones)],
+                VIVIENDA_M2: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.vivienda_m2)],
+            },
+            fallbacks=[CommandHandler("cancelar", self.cancelar)]
+        )
+        
         # Handlers
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("help", self.ayuda))
         self.app.add_handler(CommandHandler("admin", self.admin))
         self.app.add_handler(CommandHandler("usuarios", self.usuarios))
         self.app.add_handler(CallbackQueryHandler(self.handle_admin_callback))
+        self.app.add_handler(trabajo_conv)
+        self.app.add_handler(vivienda_conv)
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
         # Programar alertas automáticas cada hora
