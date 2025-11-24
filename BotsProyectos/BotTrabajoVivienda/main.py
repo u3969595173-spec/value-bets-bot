@@ -545,6 +545,98 @@ class VidaNuevaBot:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
     
+    async def activar(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Activar usuario premium - /activar USER_ID"""
+        user_id = update.effective_user.id
+        
+        if ADMIN_ID == 0 or user_id != ADMIN_ID:
+            await update.message.reply_text("❌ No tienes permisos de administrador.")
+            return
+        
+        if not context.args or len(context.args) != 1:
+            await update.message.reply_text(
+                "❌ Uso incorrecto.\n\n"
+                "**Formato correcto:**\n"
+                "`/activar USER_ID`\n\n"
+                "Ejemplo: `/activar 123456789`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        try:
+            target_user_id = int(context.args[0])
+        except ValueError:
+            await update.message.reply_text("❌ El USER_ID debe ser un número.")
+            return
+        
+        # Activar usuario
+        from database.db import activate_user
+        if activate_user(target_user_id):
+            await update.message.reply_text(
+                f"✅ **Usuario activado correctamente**\n\n"
+                f"🆔 ID: `{target_user_id}`\n"
+                f"💎 Estado: Premium\n"
+                f"🎯 Acceso: Trabajo + Vivienda",
+                parse_mode='Markdown'
+            )
+            
+            # Notificar al usuario
+            try:
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=(
+                        "🎉 **¡CUENTA ACTIVADA!**\n\n"
+                        "✅ Tu pago ha sido verificado.\n"
+                        "💎 Ahora tienes acceso premium completo:\n\n"
+                        "• 💼 Búsqueda de TRABAJO (18 portales)\n"
+                        "• 🏠 Búsqueda de VIVIENDA (15 portales)\n"
+                        "• 🔔 Alertas automáticas cada hora\n"
+                        "• 📱 Soporte prioritario\n\n"
+                        "¡Empieza a buscar ahora! 🚀"
+                    ),
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"No se pudo notificar al usuario {target_user_id}: {e}")
+        else:
+            await update.message.reply_text(f"❌ Error al activar usuario {target_user_id}")
+    
+    async def desactivar(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Desactivar usuario premium - /desactivar USER_ID"""
+        user_id = update.effective_user.id
+        
+        if ADMIN_ID == 0 or user_id != ADMIN_ID:
+            await update.message.reply_text("❌ No tienes permisos de administrador.")
+            return
+        
+        if not context.args or len(context.args) != 1:
+            await update.message.reply_text(
+                "❌ Uso incorrecto.\n\n"
+                "**Formato correcto:**\n"
+                "`/desactivar USER_ID`\n\n"
+                "Ejemplo: `/desactivar 123456789`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        try:
+            target_user_id = int(context.args[0])
+        except ValueError:
+            await update.message.reply_text("❌ El USER_ID debe ser un número.")
+            return
+        
+        # Desactivar usuario
+        from database.db import deactivate_user
+        if deactivate_user(target_user_id):
+            await update.message.reply_text(
+                f"✅ **Usuario desactivado**\n\n"
+                f"🆔 ID: `{target_user_id}`\n"
+                f"❌ Estado: Inactivo",
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(f"❌ Error al desactivar usuario {target_user_id}")
+    
     async def handle_admin_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Manejar botones de activar/desactivar usuarios y búsquedas"""
         query = update.callback_query
@@ -1445,6 +1537,8 @@ class VidaNuevaBot:
         self.app.add_handler(CommandHandler("pago", self.pago))
         self.app.add_handler(CommandHandler("admin", self.admin))
         self.app.add_handler(CommandHandler("usuarios", self.usuarios))
+        self.app.add_handler(CommandHandler("activar", self.activar))
+        self.app.add_handler(CommandHandler("desactivar", self.desactivar))
         self.app.add_handler(CallbackQueryHandler(self.handle_admin_callback))
         self.app.add_handler(trabajo_conv)
         self.app.add_handler(vivienda_conv)
