@@ -1280,17 +1280,20 @@ class JobScraper:
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
                 # Filtrar por ubicación (acepta ubicaciones expandidas)
-                location_match = True
+                location_match = False
                 if location.lower() not in ['españa', 'spain', 'nacional', '']:
                     job_location = job['location'].lower()
-                    # Acepta si: coincide con alguna ciudad del área metropolitana, es remoto, o ubicación vacía/genérica
+                    # DEBE coincidir con la ciudad específica o área metropolitana
+                    # NO acepta ubicaciones genéricas como "España" o vacías
                     location_match = (
                         any(loc in job_location for loc in locations_lower) or
                         'remoto' in job_location or 
                         'teletrabajo' in job_location or
-                        'a distancia' in job_location or
-                        job_location in ['españa', 'spain', 'nacional', '', 'no especificada']
+                        'a distancia' in job_location
                     )
+                else:
+                    # Si busca en toda España, acepta todo
+                    location_match = True
                 
                 # Separar en dos grupos
                 if has_keyword and location_match:

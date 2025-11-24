@@ -984,14 +984,15 @@ class HousingScraper:
                 
                 # Filtrar por ubicación (acepta área metropolitana)
                 listing_location = listing['location'].lower()
-                location_match = True
+                location_match = False
                 
                 if location.lower() not in ['españa', 'spain', 'nacional', '']:
-                    # Acepta si coincide con alguna ciudad del área metropolitana o ubicación genérica
-                    location_match = (
-                        any(loc in listing_location for loc in locations_lower) or
-                        listing_location in ['españa', 'spain', 'nacional', '', 'no especificada']
-                    )
+                    # DEBE coincidir con la ciudad específica o área metropolitana
+                    # NO acepta ubicaciones genéricas como "España" o vacías
+                    location_match = any(loc in listing_location for loc in locations_lower)
+                else:
+                    # Si busca en toda España, acepta todo
+                    location_match = True
                 
                 # Separar en dos grupos
                 if has_type_match and location_match:
