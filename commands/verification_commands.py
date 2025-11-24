@@ -37,26 +37,42 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     users_manager = get_users_manager()
     tracker = get_alerts_tracker()
     
-    # Buscar la alerta pendiente
-    pending_alerts = tracker.get_pending_alerts(hours_old=168)  # Última semana
-    target_alert = None
-    
-    for alert in pending_alerts:
-        if str(alert['user_id']) == str(user_id) and alert['event_id'] == event_id:
-            target_alert = alert
-            break
-    
-    if not target_alert:
-        await query.edit_message_text(
-            f"❌ No se encontró alerta pendiente para este usuario/evento\\n"
-            f"User: {user_id}, Event: {event_id}"
-        )
-        return
-    
-    # Obtener usuario
+    # Obtener usuario primero
     user = users_manager.get_user(user_id)
     if not user:
         await query.edit_message_text(f"❌ Usuario {user_id} no encontrado")
+        return
+    
+    target_alert = None
+    
+    # Si el event_id empieza con "hist_", buscar en bet_history del usuario
+    if event_id.startswith('hist_'):
+        for bet in user.bet_history:
+            if bet.get('event_id') == event_id and bet.get('status') == 'pending':
+                target_alert = {
+                    'user_id': user_id,
+                    'event_id': event_id,
+                    'stake': bet.get('stake', 0),
+                    'odds': bet.get('odds', 1.0),
+                    'selection': bet.get('selection', 'N/A'),
+                    'point': bet.get('point'),
+                    'alert_id': f"{user_id}_{event_id}"
+                }
+                logger.info(f"✅ Apuesta encontrada en historial: {event_id}")
+                break
+    else:
+        # Buscar en alerts_tracker para alertas nuevas
+        pending_alerts = tracker.get_pending_alerts(hours_old=168)
+        for alert in pending_alerts:
+            if str(alert['user_id']) == str(user_id) and alert['event_id'] == event_id:
+                target_alert = alert
+                break
+    
+    if not target_alert:
+        await query.edit_message_text(
+            f"❌ No se encontró alerta pendiente\\n"
+            f"Event: {event_id}"
+        )
         return
     
     # Calcular profit/loss
