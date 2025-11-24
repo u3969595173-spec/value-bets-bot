@@ -71,12 +71,20 @@ class VidaNuevaBot:
         """Handler para buscar trabajo"""
         msg = (
             "💼 **BÚSQUEDA DE TRABAJO**\n\n"
-            "Escribe tu búsqueda en este formato:\n\n"
+            "Escribe tu búsqueda con los detalles que quieras:\n\n"
+            "**Formato básico:**\n"
             "`trabajo: [puesto], [ciudad]`\n\n"
+            "**Formato completo (opcional):**\n"
+            "`trabajo: [puesto], [ciudad], salario: [mínimo], contrato: [tipo], experiencia: [años]`\n\n"
             "**Ejemplos:**\n"
             "• `trabajo: camarero, Madrid`\n"
-            "• `trabajo: limpieza, Barcelona`\n"
-            "• `trabajo: construcción, Valencia`\n\n"
+            "• `trabajo: limpieza, Barcelona, salario: 1200`\n"
+            "• `trabajo: construcción, Valencia, salario: 1500, contrato: indefinido`\n"
+            "• `trabajo: cocinero, Madrid, experiencia: 0, salario: 1300`\n\n"
+            "**Opciones disponibles:**\n"
+            "• `salario: [cantidad]` - Salario mínimo en €/mes\n"
+            "• `contrato: [tipo]` - indefinido, temporal, media jornada\n"
+            "• `experiencia: [años]` - Años de experiencia (0 = sin experiencia)\n\n"
             "Buscaré en Indeed, Infojobs, Jooble y más..."
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -85,12 +93,21 @@ class VidaNuevaBot:
         """Handler para buscar vivienda"""
         msg = (
             "🏠 **BÚSQUEDA DE VIVIENDA**\n\n"
-            "Escribe tu búsqueda en este formato:\n\n"
+            "Escribe tu búsqueda con los detalles que quieras:\n\n"
+            "**Formato básico:**\n"
             "`vivienda: [tipo], [ciudad]`\n\n"
+            "**Formato completo (opcional):**\n"
+            "`vivienda: [tipo], [ciudad], precio: [min-max], habitaciones: [num], m2: [tamaño]`\n\n"
             "**Ejemplos:**\n"
             "• `vivienda: habitacion, Madrid`\n"
-            "• `vivienda: piso, Barcelona`\n"
-            "• `vivienda: estudio, Valencia`\n\n"
+            "• `vivienda: piso, Barcelona, precio: 500-800`\n"
+            "• `vivienda: estudio, Valencia, precio: 400-600, m2: 30`\n"
+            "• `vivienda: habitacion, Madrid, precio: 300-500, habitaciones: 1`\n\n"
+            "**Opciones disponibles:**\n"
+            "• `precio: [min-max]` - Rango de precio en €/mes\n"
+            "• `habitaciones: [número]` - Número de habitaciones\n"
+            "• `m2: [tamaño]` - Metros cuadrados mínimos\n"
+            "• `baños: [número]` - Número de baños\n\n"
             "Buscaré en Idealista, Fotocasa, Badi y más..."
         )
         await update.message.reply_text(msg, parse_mode='Markdown')
@@ -173,22 +190,57 @@ class VidaNuevaBot:
         user_id = update.effective_user.id
         
         try:
-            # Parsear query: "trabajo: camarero, Madrid"
+            # Parsear query: "trabajo: camarero, Madrid, salario: 1200, contrato: indefinido, experiencia: 2"
             query_clean = query.replace("trabajo:", "").strip()
+            
+            # Separar por comas
             parts = [p.strip() for p in query_clean.split(",")]
             
             if len(parts) < 1:
                 await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `trabajo: camarero, Madrid`", parse_mode='Markdown')
                 return
             
+            # Extraer parámetros
             keywords = parts[0]
-            location = parts[1] if len(parts) > 1 else "España"
+            location = "España"
+            min_salary = None
+            contract_type = None
+            experience = None
+            
+            for part in parts[1:]:
+                part_lower = part.lower()
+                if "salario:" in part_lower:
+                    try:
+                        min_salary = int(part_lower.split("salario:")[1].strip())
+                    except:
+                        pass
+                elif "contrato:" in part_lower:
+                    contract_type = part_lower.split("contrato:")[1].strip()
+                elif "experiencia:" in part_lower:
+                    try:
+                        experience = int(part_lower.split("experiencia:")[1].strip())
+                    except:
+                        pass
+                elif not any(x in part_lower for x in ["salario:", "contrato:", "experiencia:"]):
+                    # Si no tiene palabra clave, es la ubicación
+                    location = part
+            
+            # Construir mensaje de búsqueda
+            search_details = f"💼 Puesto: {keywords}\n📍 Ubicación: {location}"
+            if min_salary:
+                search_details += f"\n💰 Salario mínimo: {min_salary}€/mes"
+            if contract_type:
+                search_details += f"\n📋 Contrato: {contract_type}"
+            if experience is not None:
+                if experience == 0:
+                    search_details += f"\n🎓 Sin experiencia requerida"
+                else:
+                    search_details += f"\n📊 Experiencia: {experience} años"
             
             # Mensaje de inicio
             status_msg = await update.message.reply_text(
                 f"🔍 **BUSCANDO TRABAJO**\n\n"
-                f"💼 Puesto: {keywords}\n"
-                f"📍 Ubicación: {location}\n\n"
+                f"{search_details}\n\n"
                 f"⏳ Escaneando 11 portales de empleo...",
                 parse_mode='Markdown'
             )
@@ -196,6 +248,41 @@ class VidaNuevaBot:
             # Ejecutar scraping
             logger.info(f"Buscando trabajos: {keywords} en {location}")
             jobs = search_jobs(keywords, location, max_results=50)
+            
+            # Filtrar por criterios adicionales
+            if min_salary or contract_type or experience is not None:
+                filtered_jobs = []
+                for job in jobs:
+                    # Filtrar por salario
+                    if min_salary and job.get('salary'):
+                        try:
+                            # Extraer número del salario (ej: "1.500€" -> 1500)
+                            salary_str = job['salary'].replace('€', '').replace('.', '').replace(',', '').strip()
+                            salary_num = int(''.join(filter(str.isdigit, salary_str)))
+                            if salary_num < min_salary:
+                                continue
+                        except:
+                            pass
+                    
+                    # Filtrar por tipo de contrato
+                    if contract_type:
+                        job_text = (job.get('title', '') + ' ' + job.get('description', '')).lower()
+                        if contract_type not in job_text:
+                            continue
+                    
+                    # Filtrar por experiencia
+                    if experience is not None:
+                        job_text = (job.get('title', '') + ' ' + job.get('description', '')).lower()
+                        if experience == 0:
+                            # Buscar trabajos sin experiencia
+                            if not any(word in job_text for word in ['sin experiencia', 'no experiencia', 'primer empleo']):
+                                if any(word in job_text for word in ['experiencia requerida', 'años de experiencia']):
+                                    continue
+                    
+                    filtered_jobs.append(job)
+                
+                jobs = filtered_jobs
+                logger.info(f"Después de filtrar: {len(jobs)} trabajos")
             
             # Guardar en base de datos
             if jobs:
@@ -281,22 +368,74 @@ class VidaNuevaBot:
         user_id = update.effective_user.id
         
         try:
-            # Parsear query: "vivienda: habitacion, Madrid"
+            # Parsear query: "vivienda: habitacion, Madrid, precio: 300-500, habitaciones: 1, m2: 20"
             query_clean = query.replace("vivienda:", "").strip()
+            
+            # Separar por comas
             parts = [p.strip() for p in query_clean.split(",")]
             
             if len(parts) < 1:
                 await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `vivienda: habitacion, Madrid`", parse_mode='Markdown')
                 return
             
+            # Extraer parámetros
             keywords = parts[0]
-            location = parts[1] if len(parts) > 1 else "madrid"
+            location = "madrid"
+            min_price = None
+            max_price = None
+            bedrooms = None
+            min_m2 = None
+            bathrooms = None
+            
+            for part in parts[1:]:
+                part_lower = part.lower()
+                if "precio:" in part_lower:
+                    try:
+                        price_range = part_lower.split("precio:")[1].strip()
+                        if "-" in price_range:
+                            prices = price_range.split("-")
+                            min_price = int(prices[0].strip())
+                            max_price = int(prices[1].strip())
+                        else:
+                            max_price = int(price_range)
+                    except:
+                        pass
+                elif "habitaciones:" in part_lower or "habitacion:" in part_lower:
+                    try:
+                        bedrooms = int(part_lower.split(":")[1].strip())
+                    except:
+                        pass
+                elif "m2:" in part_lower:
+                    try:
+                        min_m2 = int(part_lower.split("m2:")[1].strip())
+                    except:
+                        pass
+                elif "baños:" in part_lower or "baño:" in part_lower:
+                    try:
+                        bathrooms = int(part_lower.split(":")[1].strip())
+                    except:
+                        pass
+                elif not any(x in part_lower for x in ["precio:", "habitaciones:", "habitacion:", "m2:", "baños:", "baño:"]):
+                    # Si no tiene palabra clave, es la ubicación
+                    location = part
+            
+            # Construir mensaje de búsqueda
+            search_details = f"🏘️ Tipo: {keywords}\n📍 Ubicación: {location}"
+            if min_price and max_price:
+                search_details += f"\n💰 Precio: {min_price}-{max_price}€/mes"
+            elif max_price:
+                search_details += f"\n💰 Precio máximo: {max_price}€/mes"
+            if bedrooms:
+                search_details += f"\n🛏️ Habitaciones: {bedrooms}"
+            if min_m2:
+                search_details += f"\n📏 Mínimo: {min_m2}m²"
+            if bathrooms:
+                search_details += f"\n🚿 Baños: {bathrooms}"
             
             # Mensaje de inicio
             status_msg = await update.message.reply_text(
                 f"🏠 **BUSCANDO VIVIENDA**\n\n"
-                f"🏘️ Tipo: {keywords}\n"
-                f"📍 Ubicación: {location}\n\n"
+                f"{search_details}\n\n"
                 f"⏳ Escaneando 6 portales de vivienda...",
                 parse_mode='Markdown'
             )
@@ -304,6 +443,50 @@ class VidaNuevaBot:
             # Ejecutar scraping
             logger.info(f"Buscando viviendas: {keywords} en {location}")
             listings = search_housing(keywords, location, None, max_results=40)
+            
+            # Filtrar por criterios adicionales
+            if min_price or max_price or bedrooms or min_m2 or bathrooms:
+                filtered_listings = []
+                for listing in listings:
+                    # Filtrar por precio
+                    if listing.get('price'):
+                        try:
+                            price = float(listing['price'])
+                            if min_price and price < min_price:
+                                continue
+                            if max_price and price > max_price:
+                                continue
+                        except:
+                            pass
+                    
+                    # Filtrar por habitaciones
+                    if bedrooms and listing.get('bedrooms'):
+                        try:
+                            if int(listing['bedrooms']) < bedrooms:
+                                continue
+                        except:
+                            pass
+                    
+                    # Filtrar por m2
+                    if min_m2 and listing.get('size_m2'):
+                        try:
+                            if int(listing['size_m2']) < min_m2:
+                                continue
+                        except:
+                            pass
+                    
+                    # Filtrar por baños
+                    if bathrooms and listing.get('bathrooms'):
+                        try:
+                            if int(listing['bathrooms']) < bathrooms:
+                                continue
+                        except:
+                            pass
+                    
+                    filtered_listings.append(listing)
+                
+                listings = filtered_listings
+                logger.info(f"Después de filtrar: {len(listings)} viviendas")
             
             # Guardar en base de datos
             if listings:
