@@ -1152,9 +1152,9 @@ class VidaNuevaBot:
                 parse_mode='Markdown'
             )
             
-            # Ejecutar scraping
+            # Ejecutar scraping (SIN límite - buscar TODO lo disponible)
             logger.info(f"Buscando viviendas: {keywords} en {location}")
-            result = search_housing(keywords, location, None, max_results=40)
+            result = search_housing(keywords, location, None, max_results=200)  # Aumentado a 200
             
             # El scraper ahora devuelve un dict con exact_matches y location_only
             exact_listings = result.get('exact_matches', []) if isinstance(result, dict) else result

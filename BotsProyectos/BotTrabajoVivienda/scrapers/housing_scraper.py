@@ -268,7 +268,7 @@ class HousingScraper:
                         
                         # Extraer ubicación real
                         location_elem = item.find(class_=re.compile(r'x-location|ubicacion|provincia'))
-                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        job_location = location_elem.get_text(strip=True) if location_elem else "no especificada"
                         
                         desc_elem = item.find(class_=re.compile(r'tx|description'))
                         description = desc_elem.get_text(strip=True)[:300] if desc_elem else ""
@@ -1000,9 +1000,9 @@ class HousingScraper:
                 elif location_match:
                     location_only_listings.append(listing)  # Solo ubicación correcta
         
-        # Devolver ambos grupos
+        # Devolver ambos grupos (SIN límite en exact_matches, enviar TODO lo encontrado)
         result = {
-            'exact_matches': exact_match_listings,
+            'exact_matches': exact_match_listings,  # TODAS las viviendas exactas
             'location_only': location_only_listings[:20]  # Limitar a 20
         }
         
@@ -1014,4 +1014,4 @@ class HousingScraper:
 def search_housing(keywords, location="madrid", max_price=None, max_results=40):
     """Función helper para buscar vivienda"""
     scraper = HousingScraper()
-    return scraper.scrape_all(keywords, location, max_price, max_results // 6)
+    return scraper.scrape_all(keywords, location, max_price, max_results)  # Pasar límite completo
