@@ -626,3 +626,42 @@ async def cmd_limpiar_pendientes(update: Update, context: ContextTypes.DEFAULT_T
         
         await update.message.reply_text(msg)
         logger.info(f"🗑️ Admin {chat_id} limpió {cancelled_count} apuestas pendientes")
+
+
+async def cmd_reset_historial(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /reset_historial - BORRA TODO y resetea bank a 200€
+    """
+    chat_id = update.effective_user.id
+    
+    # Verificar que es admin
+    import os
+    admin_id = os.getenv('CHAT_ID')
+    if str(chat_id) != str(admin_id):
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    users_manager = get_users_manager()
+    user = users_manager.get_user(str(chat_id))
+    
+    if not user:
+        await update.message.reply_text("❌ Usuario no encontrado")
+        return
+    
+    # Guardar info antes de borrar
+    total_bets = len(user.bet_history)
+    old_bank = user.dynamic_bank
+    
+    # RESETEAR TODO
+    user.bet_history = []
+    user.dynamic_bank = 200.0
+    
+    users_manager.save()
+    
+    msg = f"🔥 **RESET COMPLETO**\n\n"
+    msg += f"❌ Eliminadas: {total_bets} apuestas\n"
+    msg += f"💰 Bank reseteado: {old_bank:.2f}€ → 200.00€\n\n"
+    msg += f"✅ Historial limpio - Empezar de nuevo"
+    
+    await update.message.reply_text(msg)
+    logger.info(f"🔥 Admin {chat_id} reseteó completamente el historial")

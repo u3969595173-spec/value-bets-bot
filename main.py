@@ -1642,7 +1642,7 @@ Tu saldo sigue disponible.
             logger.info("🔄 Importando comandos de verificación...")
             from commands.verification_commands import (
                 cmd_pendientes, cmd_stats_pro, cmd_verificar_historial, cmd_limpiar_pendientes,
-                handle_verification_callback, show_full_history_callback, back_to_stats_callback
+                cmd_reset_historial, handle_verification_callback, show_full_history_callback, back_to_stats_callback
             )
             from telegram.ext import CallbackQueryHandler
             
@@ -1657,6 +1657,9 @@ Tu saldo sigue disponible.
             logger.info("✅ Registrando /limpiar_pendientes...")
             self.telegram_app.add_handler(CommandHandler("limpiar_pendientes", cmd_limpiar_pendientes))
             self.telegram_app.add_handler(CommandHandler("limpiar", cmd_limpiar_pendientes))  # Alias corto
+            logger.info("✅ Registrando /reset_historial...")
+            self.telegram_app.add_handler(CommandHandler("reset_historial", cmd_reset_historial))
+            self.telegram_app.add_handler(CommandHandler("reset", cmd_reset_historial))  # Alias corto
             logger.info("✅ Registrando handlers de callbacks...")
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
             self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
