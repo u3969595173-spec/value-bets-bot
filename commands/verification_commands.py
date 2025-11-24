@@ -198,14 +198,17 @@ async def cmd_stats_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comando /stats_pro - Panel de estadísticas mejorado con bank dinámico y ROI
     """
+    logger.info(f"📊 /stats_pro ejecutado por {update.effective_user.id}")
     chat_id = update.effective_user.id
     users_manager = get_users_manager()
     user = users_manager.get_user(str(chat_id))
     
     if not user:
+        logger.warning(f"❌ Usuario {chat_id} no encontrado en /stats_pro")
         await update.message.reply_text("❌ Usuario no encontrado. Usa /start primero")
         return
     
+    logger.info(f"✅ Generando estadísticas para {user.username}...")
     # Calcular estadísticas del historial
     total_bets = len(user.bet_history)
     won = sum(1 for bet in user.bet_history if bet.get('status') == 'won')
