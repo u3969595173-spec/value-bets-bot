@@ -570,6 +570,84 @@ class JobScraper:
         
         return jobs
     
+    def scrape_milanuncios(self, keywords, location="", max_results=20):
+        """Scraper para Milanuncios.com"""
+        jobs = []
+        try:
+            # Milanuncios usa categorías - empleo es categoría 11
+            base_url = "https://www.milanuncios.com/anuncios/empleo.htm"
+            params = {'demanda': '1', 'palabra': keywords}
+            if location:
+                params['provincia'] = location
+            
+            logger.info(f"🔍 Scraping Milanuncios: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Milanuncios tiene estructura específica
+                job_items = soup.find_all(['div', 'article'], class_=re.compile(r'aditem|ma-AdCard'))
+                
+                for item in job_items[:max_results]:
+                    try:
+                        # Título
+                        title_elem = item.find(['h2', 'h3', 'a'], class_=re.compile(r'aditem-detail-title|ma-AdCard-title'))
+                        if not title_elem:
+                            title_elem = item.find('a', attrs={'title': True})
+                        
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True) if not title_elem.get('title') else title_elem.get('title')
+                        
+                        # URL
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.milanuncios.com' + url
+                        
+                        # Ubicación
+                        location_elem = item.find(class_=re.compile(r'x-location|ubicacion|provincia'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else location or "España"
+                        
+                        # Descripción
+                        desc_elem = item.find(class_=re.compile(r'tx|description|texto'))
+                        description = desc_elem.get_text(strip=True)[:300] if desc_elem else ""
+                        
+                        if url and title:
+                            # Detectar si es sin papeles/experiencia
+                            text_lower = (title + ' ' + description).lower()
+                            special_tags = []
+                            
+                            if any(word in text_lower for word in ['sin papeles', 'sin documentos', 'irregulares']):
+                                special_tags.append('sin_papeles')
+                            if any(word in text_lower for word in ['sin experiencia', 'principiantes', 'primer empleo']):
+                                special_tags.append('sin_experiencia')
+                            if any(word in text_lower for word in ['urgente', 'inmediato', 'ya']):
+                                special_tags.append('urgente')
+                            
+                            jobs.append({
+                                'title': title,
+                                'company': "Milanuncios",
+                                'location': job_location,
+                                'salary': None,
+                                'description': description,
+                                'url': url,
+                                'source': 'milanuncios',
+                                'special_tags': special_tags,
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        logger.error(f"Error procesando anuncio Milanuncios: {e}")
+                        continue
+                
+                logger.info(f"✅ Milanuncios: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Milanuncios: {e}")
+        
+        return jobs
+    
     def scrape_all(self, keywords, location="España", max_per_source=10):
         """Scraping desde TODAS las fuentes populares"""
         all_jobs = []
@@ -577,6 +655,7 @@ class JobScraper:
         scrapers = [
             ('Indeed', lambda: self.scrape_indeed(keywords, location, max_per_source)),
             ('InfoJobs', lambda: self.scrape_infojobs(keywords, location, max_per_source)),
+            ('Milanuncios', lambda: self.scrape_milanuncios(keywords, location, max_per_source)),
             ('InfoEmpleo', lambda: self.scrape_infoempleo(keywords, location, max_per_source)),
             ('Trabajos.com', lambda: self.scrape_trabajos_com(keywords, location, max_per_source)),
             ('TecnoEmpleo', lambda: self.scrape_tecnoempleo(keywords, location, max_per_source)),
@@ -604,7 +683,7 @@ class JobScraper:
                 seen_urls.add(job['url'])
                 unique_jobs.append(job)
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos de {len(all_jobs)} encontrados desde 10 fuentes")
+        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos de {len(all_jobs)} encontrados desde 11 fuentes")
         
         return unique_jobs
 
