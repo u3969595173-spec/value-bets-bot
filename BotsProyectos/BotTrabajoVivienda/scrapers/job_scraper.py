@@ -1258,8 +1258,9 @@ class JobScraper:
                         job_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
-                # Debe cumplir AMBAS condiciones: keyword Y ubicación
-                if has_keyword and location_match:
+                # FILTRO MÁS PERMISIVO: acepta si tiene keyword O si tiene ubicación correcta
+                # (Muchos scrapers extraen mal el título pero la ubicación es correcta)
+                if has_keyword or (location_match and location.lower() not in ['españa', 'spain', 'nacional', '']):
                     unique_jobs.append(job)
         
         logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 18 fuentes")
