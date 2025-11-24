@@ -14,8 +14,9 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-from database import init_database, get_or_create_user, save_search, get_user_searches, save_jobs, search_jobs_db
+from database import init_database, get_or_create_user, save_search, get_user_searches, save_jobs, search_jobs_db, save_housing, search_housing_db
 from scrapers.job_scraper import search_jobs
+from scrapers.housing_scraper import search_housing
 import json
 
 # Cargar variables de entorno
@@ -167,7 +168,7 @@ class VidaNuevaBot:
             if text.startswith("trabajo:"):
                 await self.process_job_search(update, context, text)
             elif text.startswith("vivienda:"):
-                await update.message.reply_text("🏠 Búsqueda de vivienda en desarrollo...")
+                await self.process_housing_search(update, context, text)
             else:
                 await update.message.reply_text(
                     "No entiendo ese comando. Usa /help para ver los comandos disponibles."
@@ -307,6 +308,158 @@ class VidaNuevaBot:
             logger.error(f"Error procesando búsqueda: {e}")
             await update.message.reply_text(
                 f"❌ Error al buscar trabajos: {str(e)}\n\n"
+                f"Intenta de nuevo o contacta con soporte."
+            )
+    
+    async def process_housing_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
+        """Procesar búsqueda de vivienda"""
+        user_id = update.effective_user.id
+        
+        try:
+            # Parsear query: "vivienda: habitacion, Madrid, 500, sin nomina"
+            query_clean = query.replace("vivienda:", "").strip()
+            parts = [p.strip() for p in query_clean.split(",")]
+            
+            if len(parts) < 1:
+                await update.message.reply_text("❌ Formato incorrecto. Ejemplo: `vivienda: habitacion, Madrid, 500`")
+                return
+            
+            keywords = parts[0]
+            location = parts[1] if len(parts) > 1 else "madrid"
+            
+            # Extraer precio máximo
+            max_price = None
+            filters = []
+            for part in parts[2:]:
+                # Intentar extraer precio
+                price_match = re.search(r'\d+', part)
+                if price_match and not max_price:
+                    max_price = int(price_match.group())
+                else:
+                    filters.append(part)
+            
+            # Mensaje de inicio
+            status_msg = await update.message.reply_text(
+                f"🏠 **BUSCANDO VIVIENDA**\n\n"
+                f"🏘️ Tipo: {keywords}\n"
+                f"📍 Ubicación: {location}\n"
+                f"💰 Precio máx: {max_price}€/mes" if max_price else "" + "\n"
+                f"🔧 Filtros: {', '.join(filters) if filters else 'ninguno'}\n\n"
+                f"⏳ Escaneando 6 portales de vivienda...",
+                parse_mode='Markdown'
+            )
+            
+            # Ejecutar scraping
+            logger.info(f"Buscando viviendas: {keywords} en {location}, max {max_price}")
+            listings = search_housing(keywords, location, max_price, max_results=40)
+            
+            # Guardar en base de datos
+            if listings:
+                saved_count = save_housing(listings)
+                logger.info(f"Guardadas {saved_count} viviendas nuevas")
+            
+            # Aplicar filtros especiales
+            if filters:
+                filtered_listings = []
+                for listing in listings:
+                    tags_lower = [t.lower() for t in (listing.get('special_tags') or [])]
+                    desc_lower = (listing.get('description') or '').lower()
+                    title_lower = listing['title'].lower()
+                    
+                    match = True
+                    for f in filters:
+                        f_lower = f.lower()
+                        if 'sin nomina' in f_lower or 'sin nómina' in f_lower:
+                            if 'sin_nomina' not in tags_lower and 'sin nomina' not in desc_lower:
+                                match = False
+                        elif 'sin fianza' in f_lower:
+                            if 'sin_fianza' not in tags_lower and 'sin fianza' not in desc_lower:
+                                match = False
+                        elif 'extranjeros' in f_lower or 'acepta extranjeros' in f_lower:
+                            if 'acepta_extranjeros' not in tags_lower and 'extranjeros' not in desc_lower:
+                                match = False
+                    
+                    if match:
+                        filtered_listings.append(listing)
+                
+                listings = filtered_listings
+            
+            # Guardar búsqueda
+            try:
+                filters_json = json.dumps({'filters': filters, 'max_price': max_price}) if (filters or max_price) else None
+                search_id = save_search(user_id, 'vivienda', keywords, location, filters_json)
+                logger.info(f"Búsqueda vivienda guardada con ID: {search_id}")
+            except Exception as e:
+                logger.error(f"Error guardando búsqueda vivienda: {e}")
+            
+            # Actualizar mensaje con resultados
+            if not listings:
+                await status_msg.edit_text(
+                    f"❌ **NO SE ENCONTRARON RESULTADOS**\n\n"
+                    f"🏘️ Tipo: {keywords}\n"
+                    f"📍 {location}\n"
+                    f"💰 Máx: {max_price}€/mes\n\n" if max_price else "\n\n"
+                    f"💡 **Sugerencias:**\n"
+                    f"• Aumenta el presupuesto\n"
+                    f"• Amplía la zona de búsqueda\n"
+                    f"• Prueba 'habitacion' en vez de 'piso'\n\n"
+                    f"✅ Tu búsqueda está guardada. Te avisaré cuando encuentre ofertas.",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Enviar resultados
+            result_msg = (
+                f"✅ **ENCONTRADAS {len(listings)} VIVIENDAS**\n\n"
+                f"🏘️ {keywords}\n"
+                f"📍 {location}\n"
+                f"💰 Hasta {max_price}€/mes\n\n" if max_price else "\n\n"
+                f"📋 Mostrando los primeros 5 resultados:\n"
+            )
+            await status_msg.edit_text(result_msg, parse_mode='Markdown')
+            
+            # Enviar cada vivienda como mensaje separado
+            for i, listing in enumerate(listings[:5], 1):
+                housing_msg = (
+                    f"**{i}. {listing['title']}**\n"
+                    f"📍 {listing['location']}\n"
+                )
+                
+                if listing.get('price'):
+                    housing_msg += f"💰 {listing['price']}€/mes\n"
+                
+                if listing.get('bedrooms'):
+                    housing_msg += f"🛏️ {listing['bedrooms']} hab.\n"
+                
+                if listing.get('special_tags'):
+                    tags_emoji = {
+                        'sin_fianza': '💳',
+                        'sin_nomina': '📄',
+                        'acepta_extranjeros': '🌍',
+                        'compartido': '👥'
+                    }
+                    tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in listing['special_tags']])
+                    housing_msg += f"{tags_str}\n"
+                
+                housing_msg += f"\n🔗 [Ver anuncio]({listing['url']})\n"
+                housing_msg += f"📡 Fuente: {listing['source']}"
+                
+                await update.message.reply_text(housing_msg, parse_mode='Markdown', disable_web_page_preview=True)
+            
+            # Mensaje final
+            if len(listings) > 5:
+                await update.message.reply_text(
+                    f"📊 Se encontraron **{len(listings)} viviendas** en total.\n\n"
+                    f"✅ Tu búsqueda está guardada.\n"
+                    f"🔔 Te avisaré cuando aparezcan nuevas ofertas.\n\n"
+                    f"💡 Usa '⚙️ Mis Búsquedas' para ver todas tus búsquedas activas.",
+                    parse_mode='Markdown'
+                )
+            
+        except Exception as e:
+            logger.error(f"Error procesando búsqueda vivienda: {e}")
+            await update.message.reply_text(
+                f"❌ Error al buscar viviendas: {str(e)}\n\n"
                 f"Intenta de nuevo o contacta con soporte."
             )
     

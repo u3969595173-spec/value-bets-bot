@@ -324,3 +324,115 @@ def search_jobs_db(keywords, location=None, special_tags=None, limit=20):
     finally:
         cursor.close()
         conn.close()
+
+
+def save_housing(listings):
+    """Guardar múltiples viviendas en la base de datos"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    saved_count = 0
+    
+    try:
+        for listing in listings:
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO housing (title, price, location, bedrooms, bathrooms, description, url, source, posted_date, special_tags)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (url) DO NOTHING
+                    """,
+                    (
+                        listing['title'],
+                        listing.get('price'),
+                        listing['location'],
+                        listing.get('bedrooms'),
+                        listing.get('bathrooms'),
+                        listing.get('description', ''),
+                        listing['url'],
+                        listing['source'],
+                        listing.get('posted_date'),
+                        listing.get('special_tags', []) if listing.get('special_tags') else None
+                    )
+                )
+                if cursor.rowcount > 0:
+                    saved_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error guardando vivienda individual: {e}")
+                continue
+        
+        conn.commit()
+        logger.info(f"✅ Guardadas {saved_count} viviendas nuevas de {len(listings)}")
+        return saved_count
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"❌ Error guardando viviendas: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_recent_housing(limit=20):
+    """Obtener viviendas recientes"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT * FROM housing 
+            ORDER BY scraped_at DESC 
+            LIMIT %s
+            """,
+            (limit,)
+        )
+        listings = cursor.fetchall()
+        return [dict(l) for l in listings]
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo viviendas: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def search_housing_db(keywords, location=None, max_price=None, special_tags=None, limit=20):
+    """Buscar viviendas en la base de datos"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = """
+            SELECT * FROM housing 
+            WHERE (title ILIKE %s OR description ILIKE %s)
+        """
+        params = [f'%{keywords}%', f'%{keywords}%']
+        
+        if location:
+            query += " AND location ILIKE %s"
+            params.append(f'%{location}%')
+        
+        if max_price:
+            query += " AND price <= %s"
+            params.append(max_price)
+        
+        if special_tags:
+            query += " AND special_tags @> %s::jsonb"
+            params.append(special_tags)
+        
+        query += " ORDER BY scraped_at DESC LIMIT %s"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        listings = cursor.fetchall()
+        return [dict(l) for l in listings]
+        
+    except Exception as e:
+        logger.error(f"❌ Error buscando trabajos: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
