@@ -11,10 +11,33 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# Áreas metropolitanas para vivienda
+METRO_AREAS = {
+    'barcelona': ['barcelona', 'hospitalet', 'badalona', 'terrassa', 'sabadell', 'santa coloma'],
+    'madrid': ['madrid', 'alcala henares', 'fuenlabrada', 'leganes', 'getafe', 'mostoles'],
+    'valencia': ['valencia', 'torrente', 'paterna', 'mislata', 'burjassot'],
+    'sevilla': ['sevilla', 'dos hermanas', 'alcala guadaira'],
+    'bilbao': ['bilbao', 'barakaldo', 'getxo', 'portugalete'],
+    'malaga': ['malaga', 'marbella', 'fuengirola', 'torremolinos'],
+}
+
 class HousingScraper:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
+    
+    def expand_location(self, location):
+        """Expande ubicación para incluir ciudades cercanas del área metropolitana"""
+        location_lower = location.lower()
+        
+        # Buscar si pertenece a algún área metropolitana
+        for metro, cities in METRO_AREAS.items():
+            if metro in location_lower or location_lower in cities:
+                logger.info(f"📍 Expandiendo '{location}' a área metropolitana con {len(cities)} ciudades")
+                return cities
+        
+        # Si no es área metropolitana, devuelve la ubicación original
+        return [location]
         
     def get_headers(self):
         """Headers para evitar bloqueos"""
@@ -412,6 +435,276 @@ class HousingScraper:
             pass
         return None
     
+    def scrape_enalquiler(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Enalquiler.com"""
+        listings = []
+        try:
+            location_slug = location.lower().replace(" ", "-")
+            base_url = f"https://www.enalquiler.com/pisos-en-{location_slug}.html"
+            
+            logger.info(f"🔍 Scraping Enalquiler: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div', 'article'], class_=re.compile(r'listing|advert|property'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['a', 'h2', 'h3'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.enalquiler.com' + url
+                        
+                        price_elem = item.find(['span', 'div'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'enalquiler',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Enalquiler: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Enalquiler: {e}")
+        
+        return listings
+    
+    def scrape_alquiler_com(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Alquiler.com"""
+        listings = []
+        try:
+            location_slug = location.lower().replace(" ", "-")
+            base_url = f"https://www.alquiler.com/{location_slug}"
+            
+            logger.info(f"🔍 Scraping Alquiler.com: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div', 'article'], class_=re.compile(r'property|listing'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.alquiler.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'alquiler',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Alquiler.com: {len(listings)} viviendas encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Alquiler.com: {e}")
+        
+        return listings
+    
+    def scrape_spotahome(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Spotahome.com"""
+        listings = []
+        try:
+            location_slug = location.lower()
+            base_url = f"https://www.spotahome.com/es/{location_slug}"
+            
+            logger.info(f"🔍 Scraping Spotahome: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div'], class_=re.compile(r'property-card|listing'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.spotahome.com' + url
+                        
+                        price_elem = item.find(['span', 'div'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'spotahome',
+                                'special_tags': ['verificado'],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Spotahome: {len(listings)} habitaciones encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Spotahome: {e}")
+        
+        return listings
+    
+    def scrape_uniplaces(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para Uniplaces.com (estudiantes)"""
+        listings = []
+        try:
+            location_slug = location.lower()
+            base_url = f"https://www.uniplaces.com/es/accommodation/{location_slug}"
+            
+            logger.info(f"🔍 Scraping Uniplaces: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div'], class_=re.compile(r'accommodation|property'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.uniplaces.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'uniplaces',
+                                'special_tags': ['estudiantes'],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Uniplaces: {len(listings)} habitaciones encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Uniplaces: {e}")
+        
+        return listings
+    
+    def scrape_housingany where(self, keywords, location="madrid", max_price=None, max_results=20):
+        """Scraper para HousingAnywhere.com"""
+        listings = []
+        try:
+            location_slug = location.lower()
+            base_url = f"https://housinganywhere.com/es/s/{location_slug}"
+            
+            logger.info(f"🔍 Scraping HousingAnywhere: {location}")
+            response = self.session.get(base_url, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                items = soup.find_all(['div'], class_=re.compile(r'listing|property'))
+                
+                for item in items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://housinganywhere.com' + url
+                        
+                        price_elem = item.find(['span'], class_=re.compile(r'price'))
+                        price = self.extract_price(price_elem.get_text(strip=True)) if price_elem else None
+                        
+                        if max_price and price and price > max_price:
+                            continue
+                        
+                        if url:
+                            listings.append({
+                                'title': title,
+                                'price': price,
+                                'location': location,
+                                'bedrooms': None,
+                                'bathrooms': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'housinganywhere',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ HousingAnywhere: {len(listings)} habitaciones encontradas")
+        except Exception as e:
+            logger.error(f"❌ Error scraping HousingAnywhere: {e}")
+        
+        return listings
+    
     def scrape_all(self, keywords, location="madrid", max_price=None, max_per_source=10):
         """Scraping desde TODAS las fuentes de vivienda"""
         all_listings = []
@@ -423,6 +716,12 @@ class HousingScraper:
             ('Milanuncios', lambda: self.scrape_milanuncios_housing(keywords, location, max_price, max_per_source)),
             ('Pisos.com', lambda: self.scrape_pisos_com(keywords, location, max_price, max_per_source)),
             ('Habitaclia', lambda: self.scrape_habitaclia(keywords, location, max_price, max_per_source)),
+            # Nuevos scrapers
+            ('Enalquiler', lambda: self.scrape_enalquiler(keywords, location, max_price, max_per_source)),
+            ('Alquiler.com', lambda: self.scrape_alquiler_com(keywords, location, max_price, max_per_source)),
+            ('Spotahome', lambda: self.scrape_spotahome(keywords, location, max_price, max_per_source)),
+            ('Uniplaces', lambda: self.scrape_uniplaces(keywords, location, max_price, max_per_source)),
+            ('HousingAnywhere', lambda: self.scrape_housinganywhere(keywords, location, max_price, max_per_source)),
         ]
         
         for name, scraper_func in scrapers:
@@ -438,7 +737,10 @@ class HousingScraper:
         seen_urls = set()
         unique_listings = []
         keywords_lower = keywords.lower()
-        location_lower = location.lower()
+        
+        # Expandir ubicación por área metropolitana
+        expanded_locations = self.expand_location(location)
+        locations_lower = [loc.lower() for loc in expanded_locations]
         
         for listing in all_listings:
             if listing['url'] not in seen_urls:
@@ -452,21 +754,21 @@ class HousingScraper:
                     if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
                         continue
                 
-                # Filtrar por ubicación (ESTRICTO)
+                # Filtrar por ubicación (acepta área metropolitana)
                 listing_location = listing['location'].lower()
                 location_match = True
                 
-                if location_lower not in ['españa', 'spain', 'nacional', '']:
-                    # Debe coincidir la ubicación exacta
+                if location.lower() not in ['españa', 'spain', 'nacional', '']:
+                    # Acepta si coincide con alguna ciudad del área metropolitana o ubicación genérica
                     location_match = (
-                        location_lower in listing_location or
+                        any(loc in listing_location for loc in locations_lower) or
                         listing_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
                 if location_match:
                     unique_listings.append(listing)
         
-        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 6 fuentes")
+        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 11 fuentes")
         
         return unique_listings
 

@@ -31,6 +31,16 @@ JOB_CATEGORIES = {
                  'canguro', 'niñera', 'cuidado mayores', 'cuidado niños'],
 }
 
+# Áreas metropolitanas (búsqueda expandida por ciudades cercanas)
+METRO_AREAS = {
+    'barcelona': ['barcelona', 'hospitalet', 'badalona', 'terrassa', 'sabadell', 'santa coloma'],
+    'madrid': ['madrid', 'alcala henares', 'fuenlabrada', 'leganes', 'getafe', 'mostoles'],
+    'valencia': ['valencia', 'torrente', 'paterna', 'mislata', 'burjassot'],
+    'sevilla': ['sevilla', 'dos hermanas', 'alcala guadaira'],
+    'bilbao': ['bilbao', 'barakaldo', 'getxo', 'portugalete'],
+    'malaga': ['malaga', 'marbella', 'fuengirola', 'torremolinos'],
+}
+
 class JobScraper:
     def __init__(self):
         self.ua = UserAgent()
@@ -50,6 +60,19 @@ class JobScraper:
         
         # Si no pertenece a ninguna categoría, devuelve la keyword original
         return [keywords]
+    
+    def expand_location(self, location):
+        """Expande ubicación para incluir ciudades cercanas del área metropolitana"""
+        location_lower = location.lower()
+        
+        # Buscar si pertenece a algún área metropolitana
+        for metro, cities in METRO_AREAS.items():
+            if metro in location_lower or location_lower in cities:
+                logger.info(f"📍 Expandiendo '{location}' a área metropolitana con {len(cities)} ciudades")
+                return cities
+        
+        # Si no es área metropolitana, devuelve la ubicación original
+        return [location]
         
     def get_headers(self):
         """Headers para evitar bloqueos"""
@@ -714,6 +737,206 @@ class JobScraper:
         
         return jobs
     
+    def scrape_cornerjob(self, keywords, location="", max_results=20):
+        """Scraper para Cornerjob.com"""
+        jobs = []
+        try:
+            base_url = "https://www.cornerjob.com/es/jobs"
+            params = {'q': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Cornerjob: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_cards = soup.find_all(['div', 'article'], class_=re.compile(r'job|offer|card'))
+                
+                for card in job_cards[:max_results]:
+                    try:
+                        title_elem = card.find(['h2', 'h3', 'a'], class_=re.compile(r'title'))
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else card.find('a').get('href', '') if card.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.cornerjob.com' + url
+                        
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': "Cornerjob",
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'cornerjob',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Cornerjob: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Cornerjob: {e}")
+        
+        return jobs
+    
+    def scrape_randstad(self, keywords, location="", max_results=20):
+        """Scraper para Randstad.es"""
+        jobs = []
+        try:
+            base_url = "https://www.randstad.es/candidatos/ofertas-empleo/"
+            params = {'keywords': keywords, 'location': location}
+            
+            logger.info(f"🔍 Scraping Randstad: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_items = soup.find_all(['div', 'article'], class_=re.compile(r'job|offer|vacancy'))
+                
+                for item in job_items[:max_results]:
+                    try:
+                        title_elem = item.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.randstad.es' + url
+                        
+                        location_elem = item.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': 'Randstad',
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'randstad',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Randstad: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Randstad: {e}")
+        
+        return jobs
+    
+    def scrape_adecco(self, keywords, location="", max_results=20):
+        """Scraper para Adecco.es"""
+        jobs = []
+        try:
+            base_url = "https://www.adecco.es/ofertas-empleo"
+            params = {'k': keywords, 'l': location}
+            
+            logger.info(f"🔍 Scraping Adecco: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_cards = soup.find_all(['div', 'article'], class_=re.compile(r'job|offer'))
+                
+                for card in job_cards[:max_results]:
+                    try:
+                        title_elem = card.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else card.find('a').get('href', '') if card.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.adecco.es' + url
+                        
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': 'Adecco',
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'adecco',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Adecco: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Adecco: {e}")
+        
+        return jobs
+    
+    def scrape_manpower(self, keywords, location="", max_results=20):
+        """Scraper para Manpower.es"""
+        jobs = []
+        try:
+            base_url = "https://www.manpower.es/empleos"
+            params = {'keywords': keywords, 'location': location}
+            
+            logger.info(f"🔍 Scraping Manpower: {keywords}")
+            response = self.session.get(base_url, params=params, headers=self.get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                job_listings = soup.find_all(['div', 'li'], class_=re.compile(r'job|listing|result'))
+                
+                for listing in job_listings[:max_results]:
+                    try:
+                        title_elem = listing.find(['h2', 'h3', 'a'])
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '') if title_elem.name == 'a' else listing.find('a').get('href', '') if listing.find('a') else ''
+                        
+                        if url and not url.startswith('http'):
+                            url = 'https://www.manpower.es' + url
+                        
+                        location_elem = listing.find(['span', 'div'], class_=re.compile(r'location'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
+                        if url:
+                            jobs.append({
+                                'title': title,
+                                'company': 'Manpower',
+                                'location': job_location,
+                                'salary': None,
+                                'description': '',
+                                'url': url,
+                                'source': 'manpower',
+                                'special_tags': [],
+                                'posted_date': datetime.now()
+                            })
+                    except Exception as e:
+                        continue
+                
+                logger.info(f"✅ Manpower: {len(jobs)} trabajos encontrados")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Manpower: {e}")
+        
+        return jobs
+    
     def scrape_all(self, keywords, location="España", max_per_source=10):
         """Scraping desde TODAS las fuentes populares"""
         all_jobs = []
@@ -730,6 +953,11 @@ class JobScraper:
             ('Monster', lambda: self.scrape_monster(keywords, location, max_per_source)),
             ('Jooble', lambda: self.scrape_jooble(keywords, location, max_per_source)),
             # ('JobToday', lambda: self.scrape_jobtoday(keywords, location, max_per_source)),  # Bloqueado 403
+            # Nuevos scrapers
+            ('Cornerjob', lambda: self.scrape_cornerjob(keywords, location, max_per_source)),
+            ('Randstad', lambda: self.scrape_randstad(keywords, location, max_per_source)),
+            ('Adecco', lambda: self.scrape_adecco(keywords, location, max_per_source)),
+            ('Manpower', lambda: self.scrape_manpower(keywords, location, max_per_source)),
         ]
         
         for name, scraper_func in scrapers:
@@ -748,7 +976,10 @@ class JobScraper:
         # Expandir keywords por categoría
         expanded_keywords = self.expand_keywords(keywords)
         keywords_lower = [kw.lower() for kw in expanded_keywords]
-        location_lower = location.lower()
+        
+        # Expandir ubicación por área metropolitana
+        expanded_locations = self.expand_location(location)
+        locations_lower = [loc.lower() for loc in expanded_locations]
         
         for job in all_jobs:
             if job['url'] not in seen_urls:
@@ -758,13 +989,13 @@ class JobScraper:
                 job_text = (job['title'] + ' ' + job.get('description', '')).lower()
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
-                # Filtrar por ubicación
+                # Filtrar por ubicación (acepta ubicaciones expandidas)
                 location_match = True
-                if location_lower not in ['españa', 'spain', 'nacional', '']:
+                if location.lower() not in ['españa', 'spain', 'nacional', '']:
                     job_location = job['location'].lower()
-                    # Acepta si: coincide ubicación exacta, es remoto, o ubicación vacía/genérica
+                    # Acepta si: coincide con alguna ciudad del área metropolitana, es remoto, o ubicación vacía/genérica
                     location_match = (
-                        location_lower in job_location or 
+                        any(loc in job_location for loc in locations_lower) or
                         'remoto' in job_location or 
                         'teletrabajo' in job_location or
                         'a distancia' in job_location or
@@ -775,7 +1006,7 @@ class JobScraper:
                 if has_keyword and location_match:
                     unique_jobs.append(job)
         
-        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 9 fuentes")
+        logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 13 fuentes")
         
         return unique_jobs
 
