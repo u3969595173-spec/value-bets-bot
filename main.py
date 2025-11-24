@@ -312,7 +312,6 @@ class ValueBotMonitor:
 
 📈 **Comandos útiles:**
 • /stats_pro - Estadísticas profesionales con ROI
-• /referidos - Programa de afiliados
 
 📞 **Soporte/Pagos:** +34 936 07 56 41
 
