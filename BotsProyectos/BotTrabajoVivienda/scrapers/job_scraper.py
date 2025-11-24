@@ -11,10 +11,45 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# Categorías de trabajo con sinónimos y palabras relacionadas
+JOB_CATEGORIES = {
+    'hosteleria': ['camarero', 'camarera', 'mesero', 'mesera', 'cocinero', 'cocinera', 'ayudante cocina', 
+                   'chef', 'barista', 'bartender', 'sumiller', 'maitre', 'hostess', 'runner',
+                   'pinche cocina', 'lavaplatos', 'friegaplatos', 'jefe sala', 'recepcionista hotel'],
+    'construccion': ['albañil', 'albañileria', 'peon', 'oficial', 'construccion', 'obra', 
+                     'electricista', 'fontanero', 'pintor', 'carpintero', 'yesero', 'solador',
+                     'ferrallista', 'gruista', 'paleta', 'encofradores'],
+    'limpieza': ['limpieza', 'limpiador', 'limpiadora', 'personal limpieza', 'servicio domestico',
+                 'empleada hogar', 'empleado hogar', 'mucama', 'conserje'],
+    'almacen': ['mozo almacen', 'peón almacen', 'carretillero', 'preparador pedidos', 'picking',
+                'operario logistica', 'repartidor', 'conductor', 'chofer', 'delivery'],
+    'comercio': ['dependiente', 'dependienta', 'vendedor', 'vendedora', 'cajero', 'cajera',
+                 'reponedor', 'reponedora', 'promotor', 'promotora', 'atencion cliente'],
+    'agricultura': ['agricultor', 'agricola', 'campo', 'jornalero', 'temporero', 'recolector',
+                    'cosecha', 'invernadero', 'jardinero', 'jardineria', 'peón agricola'],
+    'cuidados': ['cuidador', 'cuidadora', 'auxiliar enfermeria', 'gerocultor', 'auxiliar ayuda domicilio',
+                 'canguro', 'niñera', 'cuidado mayores', 'cuidado niños'],
+}
+
 class JobScraper:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
+    
+    def expand_keywords(self, keywords):
+        """Expande keywords basándose en categorías"""
+        keywords_lower = keywords.lower()
+        
+        # Buscar si la keyword pertenece a alguna categoría
+        for category, terms in JOB_CATEGORIES.items():
+            for term in terms:
+                if term in keywords_lower:
+                    # Si encuentra coincidencia, devuelve TODAS las palabras de esa categoría
+                    logger.info(f"🔍 Expandiendo '{keywords}' a categoría '{category}' con {len(terms)} términos")
+                    return terms
+        
+        # Si no pertenece a ninguna categoría, devuelve la keyword original
+        return [keywords]
         
     def get_headers(self):
         """Headers para evitar bloqueos"""
@@ -709,14 +744,17 @@ class JobScraper:
         # Eliminar duplicados por URL y filtrar por relevancia
         seen_urls = set()
         unique_jobs = []
-        keywords_lower = keywords.lower().split()
+        
+        # Expandir keywords por categoría
+        expanded_keywords = self.expand_keywords(keywords)
+        keywords_lower = [kw.lower() for kw in expanded_keywords]
         location_lower = location.lower()
         
         for job in all_jobs:
             if job['url'] not in seen_urls:
                 seen_urls.add(job['url'])
                 
-                # Filtrar por palabras clave (debe contener al menos una)
+                # Filtrar por palabras clave expandidas (debe contener al menos una)
                 job_text = (job['title'] + ' ' + job.get('description', '')).lower()
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
