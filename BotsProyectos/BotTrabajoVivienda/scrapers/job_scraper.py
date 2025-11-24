@@ -689,13 +689,21 @@ class JobScraper:
                 job_text = (job['title'] + ' ' + job.get('description', '')).lower()
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
-                # Filtrar por ubicación (si no es "España" genérica)
+                # Filtrar por ubicación (MÁS PERMISIVO)
                 location_match = True
                 if location_lower not in ['españa', 'spain', 'nacional']:
                     job_location = job['location'].lower()
-                    location_match = location_lower in job_location or 'remoto' in job_location or 'teletrabajo' in job_location
+                    # Acepta si: coincide ubicación, es remoto, O si location es "españa" genérica
+                    location_match = (
+                        location_lower in job_location or 
+                        'remoto' in job_location or 
+                        'teletrabajo' in job_location or
+                        location_lower in ['españa', 'spain'] or
+                        job_location in ['españa', 'spain', 'nacional', '']
+                    )
                 
-                if has_keyword and location_match:
+                # ACEPTAR SI: tiene keyword O si location coincide (más permisivo)
+                if has_keyword or location_match:
                     unique_jobs.append(job)
         
         logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 11 fuentes")
