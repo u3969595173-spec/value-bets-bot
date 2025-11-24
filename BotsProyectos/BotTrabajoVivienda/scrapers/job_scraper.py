@@ -153,7 +153,7 @@ class JobScraper:
                     company = company_elem.get_text(strip=True) if company_elem else "No especificada"
                     
                     location_elem = item.find('span', class_=re.compile(r'location'))
-                    job_location = location_elem.get_text(strip=True) if location_elem else ""
+                    job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
                     
                     salary_elem = item.find('span', class_=re.compile(r'salary'))
                     salary = salary_elem.get_text(strip=True) if salary_elem else None
@@ -316,11 +316,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.trabajos.com' + url
                         
+                        # Extraer ubicación real
+                        location_elem = item.find(['span', 'div', 'p'], class_=re.compile(r'location|ciudad|provincia'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': "Trabajos.com",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -364,11 +368,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.tecnoempleo.com' + url
                         
+                        # Extraer ubicación real
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': "TecnoEmpleo",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -411,11 +419,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.empleate.com' + url
                         
+                        # Extraer ubicación real
+                        location_elem = listing.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': "Empleate",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -459,11 +471,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.turijobs.com' + url
                         
+                        # Extraer ubicación real
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location|ciudad'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': card.find(class_=re.compile(r'company')).get_text(strip=True) if card.find(class_=re.compile(r'company')) else "No especificada",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -506,11 +522,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://www.monster.es' + url
                         
+                        # Extraer ubicación real
+                        location_elem = card.find(['span', 'div'], class_=re.compile(r'location|lugar'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': card.find(class_=re.compile(r'company')).get_text(strip=True) if card.find(class_=re.compile(r'company')) else "No especificada",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
@@ -553,11 +573,15 @@ class JobScraper:
                         if url and not url.startswith('http'):
                             url = 'https://es.jooble.org' + url
                         
+                        # Extraer ubicación real
+                        location_elem = item.find(['span', 'div'], class_=re.compile(r'location|city'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         if url:
                             jobs.append({
                                 'title': title,
                                 'company': item.find(class_=re.compile(r'company')).get_text(strip=True) if item.find(class_=re.compile(r'company')) else "No especificada",
-                                'location': location or "España",
+                                'location': job_location,
                                 'salary': None,
                                 'description': '',
                                 'url': url,
