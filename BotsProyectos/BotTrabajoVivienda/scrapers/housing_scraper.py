@@ -240,6 +240,10 @@ class HousingScraper:
                         if max_price and price and price > max_price:
                             continue
                         
+                        # Extraer ubicación real
+                        location_elem = item.find(class_=re.compile(r'x-location|ubicacion|provincia'))
+                        job_location = location_elem.get_text(strip=True) if location_elem else (location or "España")
+                        
                         desc_elem = item.find(class_=re.compile(r'tx|description'))
                         description = desc_elem.get_text(strip=True)[:300] if desc_elem else ""
                         
@@ -258,7 +262,7 @@ class HousingScraper:
                             listings.append({
                                 'title': title,
                                 'price': price,
-                                'location': location or "España",
+                                'location': job_location,
                                 'bedrooms': None,
                                 'bathrooms': None,
                                 'description': description,
@@ -445,9 +449,16 @@ class HousingScraper:
                     if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
                         continue
                 
-                # Filtrar por ubicación
+                # Filtrar por ubicación (ESTRICTO)
                 listing_location = listing['location'].lower()
-                location_match = location_lower in listing_location
+                location_match = True
+                
+                if location_lower not in ['españa', 'spain', 'nacional', '']:
+                    # Debe coincidir la ubicación exacta
+                    location_match = (
+                        location_lower in listing_location or
+                        listing_location in ['españa', 'spain', 'nacional', '', 'no especificada']
+                    )
                 
                 if location_match:
                     unique_listings.append(listing)
