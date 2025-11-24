@@ -228,7 +228,25 @@ def format_premium_alert(candidate: Dict, user, stake: float) -> str:
     odd = candidate['odds']
     bookmaker = escape_html(candidate.get('bookmaker', 'N/A'))
     original_bookmaker = bookmaker
-    event_name = escape_html(candidate.get('event', 'N/A'))
+    
+    # Obtener equipos con fallback
+    home = candidate.get('home', candidate.get('home_team', ''))
+    away = candidate.get('away', candidate.get('away_team', ''))
+    
+    # Si no hay equipos, intentar construir desde el event
+    if not home or not away:
+        event_name = candidate.get('event', '')
+        if ' vs ' in event_name:
+            parts = event_name.split(' vs ')
+            if len(parts) == 2:
+                home = parts[0].strip()
+                away = parts[1].strip()
+    
+    # Si TODAVÍA no hay equipos, usar sport como fallback
+    if not home or not away:
+        event_name = escape_html(f"{sport_es.upper()} - {selection}")
+    else:
+        event_name = escape_html(f"{home} vs {away}")
     
     point = candidate.get('point')
 
