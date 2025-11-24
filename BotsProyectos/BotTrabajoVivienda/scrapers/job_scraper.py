@@ -41,10 +41,33 @@ METRO_AREAS = {
     'malaga': ['malaga', 'marbella', 'fuengirola', 'torremolinos'],
 }
 
+# Títulos inválidos que no son ofertas reales (elementos de interfaz)
+INVALID_TITLES = [
+    'busca trabajo', 'buscar empleo', 'ofertas de empleo', 'trabajos encontrados',
+    'resultados', 'no se encontraron', 'cargando', 'ver más', 'filtrar',
+    'ordenar por', 'empleo en', 'trabajo en', 'ofertas en', 'encuentra',
+    'buscar', 'ver todas', 'mostrar', 'página', 'iniciar sesión', 'regístrate',
+    'registro', 'login', 'acceder', 'mi cuenta'
+]
+
 class JobScraper:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
+    
+    def is_valid_title(self, title):
+        """Valida que un título sea una oferta real y no un elemento de interfaz"""
+        if not title or len(title) < 5:
+            return False
+        if title.isdigit():
+            return False
+        
+        title_lower = title.lower()
+        # Rechazar títulos genéricos de la interfaz
+        if any(invalid in title_lower for invalid in INVALID_TITLES):
+            return False
+        
+        return True
     
     def expand_keywords(self, keywords):
         """Expande keywords basándose en categorías"""
@@ -318,6 +341,11 @@ class JobScraper:
                             continue
                         
                         title = title_elem.get_text(strip=True)
+                        
+                        # Validar que el título sea una oferta real
+                        if not self.is_valid_title(title):
+                            continue
+                        
                         url = title_elem.get('href', '') if title_elem.name == 'a' else ''
                         if not url:
                             url_elem = card.find('a')
@@ -808,6 +836,11 @@ class JobScraper:
                             continue
                         
                         title = title_elem.get_text(strip=True)
+                        
+                        # Validar que el título sea una oferta real
+                        if not self.is_valid_title(title):
+                            continue
+                        
                         url = title_elem.get('href', '') if title_elem.name == 'a' else item.find('a').get('href', '') if item.find('a') else ''
                         
                         if url and not url.startswith('http'):
@@ -1241,7 +1274,7 @@ class JobScraper:
             if job['url'] not in seen_urls:
                 seen_urls.add(job['url'])
                 
-                # Filtrar por palabras clave expandidas (debe contener al menos una)
+                # Filtrar por palabras clave expandidas (debe contener al menos una de la categoría)
                 job_text = (job['title'] + ' ' + job.get('description', '')).lower()
                 has_keyword = any(keyword in job_text for keyword in keywords_lower)
                 
@@ -1258,9 +1291,8 @@ class JobScraper:
                         job_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
-                # FILTRO MÁS PERMISIVO: acepta si tiene keyword O si tiene ubicación correcta
-                # (Muchos scrapers extraen mal el título pero la ubicación es correcta)
-                if has_keyword or (location_match and location.lower() not in ['españa', 'spain', 'nacional', '']):
+                # DEBE CUMPLIR AMBAS: keyword de la categoría Y ubicación correcta
+                if has_keyword and location_match:
                     unique_jobs.append(job)
         
         logger.info(f"📊 Total: {len(unique_jobs)} trabajos únicos y relevantes de {len(all_jobs)} encontrados desde 18 fuentes")
