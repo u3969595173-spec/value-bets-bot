@@ -226,14 +226,21 @@ async def cmd_stats_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
     
+    # Helper para parsear fechas con timezone
+    def parse_date(date_str):
+        dt = datetime.fromisoformat(date_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    
     # Semanal
-    weekly_bets = [bet for bet in user.bet_history if datetime.fromisoformat(bet.get('date', '2020-01-01')) > week_ago]
+    weekly_bets = [bet for bet in user.bet_history if parse_date(bet.get('date', '2020-01-01T00:00:00+00:00')) > week_ago]
     weekly_profit = sum(bet.get('profit', 0) for bet in weekly_bets if bet.get('profit') is not None)
     weekly_staked = sum(bet.get('stake', 0) for bet in weekly_bets if bet.get('status') in ['won', 'lost'])
     weekly_roi = (weekly_profit / weekly_staked * 100) if weekly_staked > 0 else 0
     
     # Mensual
-    monthly_bets = [bet for bet in user.bet_history if datetime.fromisoformat(bet.get('date', '2020-01-01')) > month_ago]
+    monthly_bets = [bet for bet in user.bet_history if parse_date(bet.get('date', '2020-01-01T00:00:00+00:00')) > month_ago]
     monthly_profit = sum(bet.get('profit', 0) for bet in monthly_bets if bet.get('profit') is not None)
     monthly_staked = sum(bet.get('stake', 0) for bet in monthly_bets if bet.get('status') in ['won', 'lost'])
     monthly_roi = (monthly_profit / monthly_staked * 100) if monthly_staked > 0 else 0
