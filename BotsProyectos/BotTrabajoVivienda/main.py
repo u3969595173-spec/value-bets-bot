@@ -1070,8 +1070,6 @@ class VidaNuevaBot:
             
             # Aplicar filtros adicionales si hay (precio, habitaciones, etc.) solo a exact_listings
             if (min_price or max_price or bedrooms or min_m2 or bathrooms) and exact_listings:
-            # Aplicar filtros adicionales si hay (precio, habitaciones, etc.) solo a exact_listings
-            if (min_price or max_price or bedrooms or min_m2 or bathrooms) and exact_listings:
                 filtered_listings = []
                 for listing in exact_listings:
                     # Filtrar por precio
