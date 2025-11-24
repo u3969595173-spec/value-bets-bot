@@ -651,7 +651,7 @@ class HousingScraper:
         
         return listings
     
-    def scrape_housingany where(self, keywords, location="madrid", max_price=None, max_results=20):
+    def scrape_housinganywhere(self, keywords, location="madrid", max_price=None, max_results=20):
         """Scraper para HousingAnywhere.com"""
         listings = []
         try:
