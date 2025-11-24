@@ -956,7 +956,8 @@ class HousingScraper:
         
         # Eliminar duplicados por URL y filtrar por relevancia
         seen_urls = set()
-        unique_listings = []
+        exact_match_listings = []  # Viviendas que coinciden con tipo Y ubicación
+        location_only_listings = []  # Viviendas solo con ubicación correcta
         keywords_lower = keywords.lower()
         
         # Expandir ubicación por área metropolitana
@@ -970,10 +971,16 @@ class HousingScraper:
                 # Filtrar por tipo de vivienda
                 listing_text = (listing['title'] + ' ' + listing.get('description', '')).lower()
                 
-                # Si busca "habitacion", filtrar pisos completos
+                # Determinar si coincide con el tipo buscado
+                has_type_match = False
                 if 'habitacion' in keywords_lower:
-                    if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
-                        continue
+                    # Busca habitación: debe contener "habitacion" y NO "piso completo"
+                    if 'habitacion' in listing_text or 'hab' in listing_text:
+                        if 'piso completo' not in listing_text and 'apartamento completo' not in listing_text:
+                            has_type_match = True
+                else:
+                    # Busca piso/apartamento: cualquier vivienda vale
+                    has_type_match = True
                 
                 # Filtrar por ubicación (acepta área metropolitana)
                 listing_location = listing['location'].lower()
@@ -986,12 +993,21 @@ class HousingScraper:
                         listing_location in ['españa', 'spain', 'nacional', '', 'no especificada']
                     )
                 
-                if location_match:
-                    unique_listings.append(listing)
+                # Separar en dos grupos
+                if has_type_match and location_match:
+                    exact_match_listings.append(listing)  # Coincidencia exacta
+                elif location_match:
+                    location_only_listings.append(listing)  # Solo ubicación correcta
         
-        logger.info(f"📊 Total: {len(unique_listings)} viviendas únicas y relevantes de {len(all_listings)} encontradas desde 15 fuentes")
+        # Devolver ambos grupos
+        result = {
+            'exact_matches': exact_match_listings,
+            'location_only': location_only_listings[:20]  # Limitar a 20
+        }
         
-        return unique_listings
+        logger.info(f"📊 Encontradas: {len(exact_match_listings)} viviendas exactas + {len(location_only_listings)} viviendas en la ubicación")
+        
+        return result
 
 
 def search_housing(keywords, location="madrid", max_price=None, max_results=40):

@@ -1064,36 +1064,18 @@ class VidaNuevaBot:
             
             # Ejecutar scraping
             logger.info(f"Buscando viviendas: {keywords} en {location}")
-            listings = search_housing(keywords, location, None, max_results=40)
+            result = search_housing(keywords, location, None, max_results=40)
             
-            # Filtro adicional de relevancia
-            if listings:
-                keywords_lower = keywords.lower()
-                location_lower = location.lower()
-                filtered_listings = []
-                
-                for listing in listings:
-                    listing_text = (listing['title'] + ' ' + listing.get('description', '')).lower()
-                    listing_location = listing['location'].lower()
-                    
-                    # Si busca habitación, excluir pisos completos
-                    if 'habitacion' in keywords_lower:
-                        if 'piso completo' in listing_text or 'apartamento completo' in listing_text:
-                            continue
-                    
-                    # Debe estar en la ubicación correcta
-                    location_ok = location_lower in listing_location
-                    
-                    if location_ok:
-                        filtered_listings.append(listing)
-                
-                listings = filtered_listings
-                logger.info(f"Después de filtro de relevancia: {len(listings)} viviendas")
+            # El scraper ahora devuelve un dict con exact_matches y location_only
+            exact_listings = result.get('exact_matches', []) if isinstance(result, dict) else result
+            location_listings = result.get('location_only', []) if isinstance(result, dict) else []
             
-            # Filtrar por criterios adicionales
-            if min_price or max_price or bedrooms or min_m2 or bathrooms:
+            # Aplicar filtros adicionales si hay (precio, habitaciones, etc.) solo a exact_listings
+            if (min_price or max_price or bedrooms or min_m2 or bathrooms) and exact_listings:
+            # Aplicar filtros adicionales si hay (precio, habitaciones, etc.) solo a exact_listings
+            if (min_price or max_price or bedrooms or min_m2 or bathrooms) and exact_listings:
                 filtered_listings = []
-                for listing in listings:
+                for listing in exact_listings:
                     # Filtrar por precio
                     if listing.get('price'):
                         try:
@@ -1131,12 +1113,13 @@ class VidaNuevaBot:
                     
                     filtered_listings.append(listing)
                 
-                listings = filtered_listings
-                logger.info(f"Después de filtrar: {len(listings)} viviendas")
+                exact_listings = filtered_listings
+                logger.info(f"Después de filtrar: {len(exact_listings)} viviendas exactas")
             
             # Guardar en base de datos
-            if listings:
-                saved_count = save_housing(listings)
+            all_listings_to_save = exact_listings + location_listings
+            if all_listings_to_save:
+                saved_count = save_housing(all_listings_to_save)
                 logger.info(f"Guardadas {saved_count} viviendas nuevas")
             
             # Guardar búsqueda
@@ -1147,7 +1130,7 @@ class VidaNuevaBot:
                 logger.error(f"Error guardando búsqueda vivienda: {e}")
             
             # Actualizar mensaje con resultados
-            if not listings:
+            if not exact_listings and not location_listings:
                 await status_msg.edit_text(
                     f"❌ **NO SE ENCONTRARON RESULTADOS**\n\n"
                     f"🏘️ Tipo: {keywords}\n"
@@ -1159,56 +1142,101 @@ class VidaNuevaBot:
                     f"✅ Búsqueda guardada.\n"
                     f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas automáticas.",
                     parse_mode='Markdown'
-                )
                 return
             
-            # Enviar resultados
-            result_msg = (
-                f"✅ **ENCONTRADAS {len(listings)} VIVIENDAS**\n\n"
-                f"🏘️ {keywords}\n"
-                f"📍 {location}\n\n"
-                f"📋 Enviando todos los resultados:\n"
-            )
-            await status_msg.edit_text(result_msg, parse_mode='Markdown')
-            
-            # Enviar cada vivienda como mensaje separado
-            for i, listing in enumerate(listings, 1):
-                housing_msg = (
-                    f"**{i}. {listing['title']}**\n"
-                    f"📍 {listing['location']}\n"
+            # Si hay viviendas exactas, mostrarlas primero
+            if exact_listings:
+                result_msg = (
+                    f"✅ **ENCONTRADAS {len(exact_listings)} VIVIENDAS DE {keywords.upper()}**\n\n"
+                    f"🏘️ {keywords}\n"
+                    f"📍 {location}\n\n"
+                    f"📋 Enviando todos los resultados:\n"
                 )
+                await status_msg.edit_text(result_msg, parse_mode='Markdown')
                 
-                if listing.get('price'):
-                    housing_msg += f"💰 {listing['price']}€/mes\n"
+                # Enviar cada vivienda como mensaje separado
+                for i, listing in enumerate(exact_listings, 1):
+                    housing_msg = (
+                        f"**{i}. {listing['title']}**\n"
+                        f"📍 {listing['location']}\n"
+                    )
+                    
+                    if listing.get('price'):
+                        housing_msg += f"💰 {listing['price']}€/mes\n"
+                    
+                    if listing.get('bedrooms'):
+                        housing_msg += f"🛏️ {listing['bedrooms']} hab.\n"
+                    
+                    if listing.get('special_tags'):
+                        tags_emoji = {
+                            'sin_fianza': '💳',
+                            'sin_nomina': '📄',
+                            'acepta_extranjeros': '🌍',
+                            'compartido': '👥'
+                        }
+                        tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in listing['special_tags']])
+                        housing_msg += f"{tags_str}\n"
+                    
+                    housing_msg += f"\n🔗 [Ver anuncio]({listing['url']})\n"
+                    housing_msg += f"📡 Fuente: {listing['source']}"
+                    
+                    await update.message.reply_text(housing_msg, parse_mode='Markdown', disable_web_page_preview=True)
                 
-                if listing.get('bedrooms'):
-                    housing_msg += f"🛏️ {listing['bedrooms']} hab.\n"
-                
-                if listing.get('special_tags'):
-                    tags_emoji = {
-                        'sin_fianza': '💳',
-                        'sin_nomina': '📄',
-                        'acepta_extranjeros': '🌍',
-                        'compartido': '👥'
-                    }
-                    tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in listing['special_tags']])
-                    housing_msg += f"{tags_str}\n"
-                
-                housing_msg += f"\n🔗 [Ver anuncio]({listing['url']})\n"
-                housing_msg += f"📡 Fuente: {listing['source']}"
-                
-                await update.message.reply_text(housing_msg, parse_mode='Markdown', disable_web_page_preview=True)
+                # Mensaje final
+                await update.message.reply_text(
+                    f"📊 **TOTAL: {len(exact_listings)} viviendas de {keywords} enviadas**\n\n"
+                    f"✅ Búsqueda guardada correctamente.\n\n"
+                    f"🔔 **ACTIVAR ALERTAS:**\n"
+                    f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
+                    f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
+                    f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
+                    parse_mode='Markdown'
+                )
             
-            # Mensaje final
-            await update.message.reply_text(
-                f"📊 **TOTAL: {len(listings)} viviendas enviadas**\n\n"
-                f"✅ Búsqueda guardada correctamente.\n\n"
-                f"🔔 **ACTIVAR ALERTAS:**\n"
-                f"Usa '⚙️ Mis Búsquedas' para activar las alertas automáticas.\n"
-                f"Te avisaré cada hora si encuentro nuevas ofertas.\n\n"
-                f"💡 Tip: Las alertas están desactivadas por defecto para que tú decidas cuándo activarlas.",
-                parse_mode='Markdown'
-            )
+            # Si NO hay viviendas exactas PERO SÍ hay en la ubicación, mostrar mensaje alternativo
+            elif not exact_listings and location_listings:
+                no_exact_msg = (
+                    f"❌ **NO ENCONTRÉ {keywords.upper()} EN {location.upper()}**\n\n"
+                    f"Pero encontré **{len(location_listings)} viviendas disponibles en {location}**:\n"
+                )
+                await status_msg.edit_text(no_exact_msg, parse_mode='Markdown')
+                
+                # Enviar viviendas alternativas
+                for i, listing in enumerate(location_listings, 1):
+                    housing_msg = (
+                        f"**{i}. {listing['title']}**\n"
+                        f"📍 {listing['location']}\n"
+                    )
+                    
+                    if listing.get('price'):
+                        housing_msg += f"💰 {listing['price']}€/mes\n"
+                    
+                    if listing.get('bedrooms'):
+                        housing_msg += f"🛏️ {listing['bedrooms']} hab.\n"
+                    
+                    if listing.get('special_tags'):
+                        tags_emoji = {
+                            'sin_fianza': '💳',
+                            'sin_nomina': '📄',
+                            'acepta_extranjeros': '🌍',
+                            'compartido': '👥'
+                        }
+                        tags_str = ' '.join([f"{tags_emoji.get(t, '🏷️')} {t.replace('_', ' ').title()}" for t in listing['special_tags']])
+                        housing_msg += f"{tags_str}\n"
+                    
+                    housing_msg += f"\n🔗 [Ver anuncio]({listing['url']})\n"
+                    housing_msg += f"📡 Fuente: {listing['source']}"
+                    
+                    await update.message.reply_text(housing_msg, parse_mode='Markdown', disable_web_page_preview=True)
+                
+                # Mensaje final explicativo
+                await update.message.reply_text(
+                    f"📊 **{len(location_listings)} viviendas alternativas en {location}**\n\n"
+                    f"💡 No encontré **{keywords}** específicamente, pero estas están en tu ubicación y podrían interesarte.\n\n"
+                    f"✅ Búsqueda guardada.\n"
+                    f"🔔 Usa '⚙️ Mis Búsquedas' para activar alertas.",
+                    parse_mode='Markdown'
+                )
             
         except Exception as e:
             logger.error(f"Error procesando búsqueda vivienda: {e}")
@@ -1310,21 +1338,34 @@ class VidaNuevaBot:
                     
                     elif search_type == 'vivienda':
                         # Buscar viviendas
-                        new_listings = search_housing(keywords, location, None, max_results=10)
+                        result = search_housing(keywords, location, None, max_results=10)
+                        
+                        # Manejar nuevo formato con exact_matches y location_only
+                        exact_listings = result.get('exact_matches', []) if isinstance(result, dict) else result
+                        location_listings = result.get('location_only', []) if isinstance(result, dict) else []
+                        
+                        # Priorizar viviendas exactas
+                        new_listings = exact_listings if exact_listings else location_listings[:5]  # Solo 5 alternativas
                         
                         if new_listings:
                             # Guardar en BD
                             saved = save_housing(new_listings)
                             
                             if saved > 0:
-                                # Enviar alerta al usuario
-                                alert_msg = (
-                                    f"🔔 **NUEVA ALERTA DE VIVIENDA**\n\n"
-                                    f"🏠 {keywords}\n"
-                                    f"📍 {location}\n\n"
-                                    f"✅ Se encontraron **{saved} nuevas viviendas**\n\n"
-                                    f"Mostrando las primeras:"
-                                )
+                                # Mensaje diferente según tipo de resultados
+                                if exact_listings:
+                                    alert_msg = (
+                                        f"🔔 **NUEVA ALERTA DE VIVIENDA**\n\n"
+                                        f"🏠 {keywords}\n"
+                                        f"📍 {location}\n\n"
+                                        f"✅ Se encontraron **{saved} nuevas viviendas**\n\n"
+                                        f"Mostrando las primeras:"
+                                    )
+                                else:
+                                    alert_msg = (
+                                        f"🔔 **ALERTA: Viviendas en {location}**\n\n"
+                                        f"No encontré **{keywords}**, pero hay {len(new_listings)} viviendas en tu ubicación:\n"
+                                    )
                                 
                                 await context.bot.send_message(
                                     chat_id=user_id,
