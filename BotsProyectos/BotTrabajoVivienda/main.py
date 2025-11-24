@@ -188,5 +188,11 @@ if __name__ == '__main__':
         logger.error("❌ BOT_TOKEN no configurado en .env")
         exit(1)
     
+    # Esperar 60 segundos en Render para que instancia anterior termine
+    if os.getenv('RENDER'):
+        import time
+        logger.info("⏳ RENDER: Esperando 60s para que instancia anterior termine...")
+        time.sleep(60)
+    
     bot = VidaNuevaBot()
     bot.run()
