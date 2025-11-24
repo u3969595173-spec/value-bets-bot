@@ -516,3 +516,69 @@ async def cmd_verificar_historial(update: Update, context: ContextTypes.DEFAULT_
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(bet_msg, reply_markup=reply_markup)
+
+
+async def cmd_limpiar_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /limpiar_pendientes [N] - Mantiene solo las últimas N apuestas pendientes
+    """
+    chat_id = update.effective_user.id
+    
+    # Verificar que es admin
+    import os
+    admin_id = os.getenv('CHAT_ID')
+    if str(chat_id) != str(admin_id):
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    # Obtener número de apuestas a mantener (default 2)
+    try:
+        keep_last = int(context.args[0]) if context.args else 2
+    except:
+        keep_last = 2
+    
+    users_manager = get_users_manager()
+    user = users_manager.get_user(str(chat_id))
+    
+    if not user:
+        await update.message.reply_text("❌ Usuario no encontrado")
+        return
+    
+    # Filtrar apuestas pendientes
+    pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+    
+    if not pending_bets:
+        await update.message.reply_text("✅ No tienes apuestas pendientes")
+        return
+    
+    total_pending = len(pending_bets)
+    
+    if total_pending <= keep_last:
+        await update.message.reply_text(
+            f"ℹ️ Solo tienes {total_pending} apuestas pendientes.\n"
+            f"No es necesario limpiar (quieres mantener {keep_last})."
+        )
+        return
+    
+    # Mantener solo las últimas N pendientes, marcar el resto como "cancelled"
+    to_cancel = total_pending - keep_last
+    cancelled_count = 0
+    
+    for bet in user.bet_history:
+        if bet.get('status') == 'pending':
+            if cancelled_count < to_cancel:
+                bet['status'] = 'cancelled'
+                bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
+                cancelled_count += 1
+    
+    # Guardar cambios
+    users_manager.save()
+    
+    msg = f"🗑️ **LIMPIEZA COMPLETADA**\n\n"
+    msg += f"📊 Total pendientes: {total_pending}\n"
+    msg += f"❌ Canceladas: {cancelled_count}\n"
+    msg += f"✅ Mantenidas: {keep_last}\n\n"
+    msg += f"Las apuestas canceladas ya no aparecerán en /verificar"
+    
+    await update.message.reply_text(msg)
+    logger.info(f"🗑️ Admin {chat_id} limpió {cancelled_count} apuestas pendientes")
