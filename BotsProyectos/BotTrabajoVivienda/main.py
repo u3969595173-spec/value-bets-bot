@@ -6,6 +6,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from web_server import run_in_background
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -188,9 +189,11 @@ if __name__ == '__main__':
         logger.error("❌ BOT_TOKEN no configurado en .env")
         exit(1)
     
-    # Esperar 90 segundos en Render para que instancia anterior termine
-    # Render siempre tiene la variable RENDER_SERVICE_NAME
+    # Iniciar servidor HTTP para Render (en background)
     if os.getenv('RENDER_SERVICE_NAME'):
+        run_in_background()
+        
+        # Esperar 90 segundos para que instancia anterior termine
         import time
         logger.info("⏳ RENDER: Esperando 90s para que instancia anterior termine...")
         time.sleep(90)
