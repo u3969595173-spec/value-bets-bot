@@ -38,7 +38,7 @@ from data.alerts_tracker import get_alerts_tracker
 from data.results_api import verify_pick_result
 
 # Imports de Telegram para botones y handlers
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Imports del sistema mejorado (opcional)
@@ -2208,10 +2208,19 @@ Tu saldo sigue disponible.
                 logger.error(f"DEBUG: ERROR formatting message: {e}")
                 return False
             
-            # Enviar mensaje
+            # CREAR BOTONES DE VERIFICACIÓN MANUAL
+            event_id = candidate.get('id', '')
+            keyboard = [[
+                InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_{user.chat_id}_{event_id}"),
+                InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_{user.chat_id}_{event_id}"),
+                InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_{user.chat_id}_{event_id}")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Enviar mensaje CON BOTONES
             try:
-                await self.notifier.send_message(user.chat_id, message)
-                logger.info(f"DEBUG: Message sent successfully to {user.chat_id}")
+                await self.notifier.send_message(user.chat_id, message, reply_markup=reply_markup)
+                logger.info(f"DEBUG: Message with verification buttons sent successfully to {user.chat_id}")
             except Exception as e:
                 logger.error(f"DEBUG: ERROR sending message: {e}")
                 return False
