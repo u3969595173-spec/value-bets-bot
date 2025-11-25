@@ -1641,7 +1641,8 @@ Tu saldo sigue disponible.
             logger.info("🔄 Importando comandos de verificación...")
             from commands.verification_commands import (
                 cmd_pendientes, cmd_stats_pro, cmd_verificar_historial, cmd_limpiar_pendientes,
-                cmd_reset_historial, handle_verification_callback, show_full_history_callback, back_to_stats_callback
+                cmd_reset_historial, handle_verification_callback, handle_verification_all_callback,
+                show_full_history_callback, back_to_stats_callback
             )
             from commands.admin_telegram_commands import (
                 cmd_pagar_referidos, cmd_saldo, cmd_usuarios, handle_pagar_callback
@@ -1674,6 +1675,7 @@ Tu saldo sigue disponible.
             self.telegram_app.add_handler(CommandHandler("users", cmd_usuarios))  # Alias en inglés
             
             logger.info("✅ Registrando handlers de callbacks...")
+            self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_all_callback, pattern="^verify_(won|lost|push)_all_"))
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
             self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
             self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
@@ -2208,25 +2210,46 @@ Tu saldo sigue disponible.
                 logger.error(f"DEBUG: ERROR formatting message: {e}")
                 return False
             
-            # CREAR BOTONES DE VERIFICACIÓN MANUAL - SOLO PARA ADMIN
-            reply_markup = None
-            if str(user.chat_id) == str(CHAT_ID):  # Solo admin recibe botones
-                event_id = candidate.get('id', '')
-                keyboard = [[
-                    InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_{user.chat_id}_{event_id}"),
-                    InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_{user.chat_id}_{event_id}"),
-                    InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_{user.chat_id}_{event_id}")
-                ]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                logger.info(f"DEBUG: Verification buttons added for admin")
-            
-            # Enviar mensaje (con o sin botones según si es admin)
+            # Enviar mensaje al usuario (sin botones)
             try:
-                await self.notifier.send_message(user.chat_id, message, reply_markup=reply_markup)
+                await self.notifier.send_message(user.chat_id, message)
                 logger.info(f"DEBUG: Message sent successfully to {user.chat_id}")
             except Exception as e:
                 logger.error(f"DEBUG: ERROR sending message: {e}")
                 return False
+            
+            # ENVIAR COPIA AL ADMIN CON BOTONES DE VERIFICACIÓN
+            if str(user.chat_id) != str(CHAT_ID):  # Solo si NO es el admin (evitar duplicados)
+                event_id = candidate.get('id', '')
+                keyboard = [[
+                    InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_all_{event_id}"),
+                    InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_all_{event_id}"),
+                    InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_all_{event_id}")
+                ]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # Mensaje para admin con info del usuario
+                admin_message = f"📬 <b>APUESTA ENVIADA A:</b> {user.nombre or user.chat_id}\n\n{message}"
+                
+                try:
+                    await self.notifier.send_message(CHAT_ID, admin_message, reply_markup=reply_markup)
+                    logger.info(f"✅ Admin copy sent with verification buttons for event {event_id}")
+                except Exception as e:
+                    logger.error(f"❌ ERROR sending admin copy: {e}")
+            else:
+                # Si ES el admin, agregarle los botones directamente
+                event_id = candidate.get('id', '')
+                keyboard = [[
+                    InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_all_{event_id}"),
+                    InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_all_{event_id}"),
+                    InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_all_{event_id}")
+                ]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                try:
+                    await self.notifier.send_message(user.chat_id, message, reply_markup=reply_markup)
+                    logger.info(f"✅ Admin alert sent with verification buttons")
+                except Exception as e:
+                    logger.error(f"❌ ERROR sending admin alert: {e}")
             
             # Registrar alerta enviada
             user.record_alert_sent()

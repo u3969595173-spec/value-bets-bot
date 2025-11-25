@@ -192,6 +192,152 @@ async def handle_verification_callback(update: Update, context: ContextTypes.DEF
     logger.info(f"✅ Verificación manual completada: {result}")
 
 
+async def handle_verification_all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler para verificación que actualiza TODOS los usuarios con esa apuesta
+    
+    Callback data format: verify_{result}_all_{event_id}
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    # Parse callback data
+    parts = query.data.split('_')
+    if len(parts) < 4:
+        await query.edit_message_text("❌ Error: Formato de callback inválido")
+        return
+    
+    result = parts[1]  # 'won', 'lost', 'push'
+    # parts[2] = 'all'
+    event_id = '_'.join(parts[3:])  # El event_id puede tener guiones bajos
+    
+    logger.info(f"📊 Verificación GLOBAL: {result} para event {event_id}")
+    
+    # Obtener managers
+    users_manager = get_users_manager()
+    tracker = get_alerts_tracker()
+    
+    # Buscar TODOS los usuarios que tienen esta apuesta
+    users_with_bet = []
+    all_users = users_manager.get_all_users()
+    
+    for user in all_users:
+        for bet in user.bet_history:
+            if bet.get('event_id') == event_id:
+                users_with_bet.append({
+                    'user': user,
+                    'bet': bet
+                })
+                break
+    
+    if not users_with_bet:
+        await query.edit_message_text(f"❌ No se encontró ningún usuario con la apuesta {event_id}")
+        return
+    
+    logger.info(f"✅ Encontrados {len(users_with_bet)} usuarios con el event {event_id}")
+    
+    # Actualizar cada usuario
+    updated_count = 0
+    total_profit_loss = 0
+    
+    for item in users_with_bet:
+        user = item['user']
+        bet = item['bet']
+        
+        stake = bet.get('stake', 0)
+        odds = bet.get('odds', 1.0)
+        
+        # Calcular profit/loss
+        if result == 'won':
+            profit_loss = stake * (odds - 1)
+            status_text = "GANÓ"
+            emoji = "✅"
+        elif result == 'lost':
+            profit_loss = -stake
+            status_text = "PERDIÓ"
+            emoji = "❌"
+        else:  # push
+            profit_loss = 0
+            status_text = "EMPATE"
+            emoji = "🔄"
+        
+        # Revertir resultado anterior si existe
+        previous_status = bet.get('status')
+        previous_profit = bet.get('profit', 0)
+        
+        if previous_status in ['won', 'lost', 'push'] and previous_profit:
+            user.dynamic_bank -= previous_profit
+            logger.info(f"🔄 Usuario {user.chat_id}: Revirtiendo profit anterior {previous_profit:+.2f}€")
+        
+        old_bank = user.dynamic_bank
+        
+        # Aplicar nuevo resultado
+        bet['status'] = result
+        bet['result_verified_at'] = datetime.now(timezone.utc).isoformat()
+        bet['profit'] = profit_loss
+        user.dynamic_bank += profit_loss
+        
+        new_bank = user.dynamic_bank
+        total_profit_loss += profit_loss
+        updated_count += 1
+        
+        logger.info(f"✅ Usuario {user.chat_id}: {previous_status} → {result}, profit: {profit_loss:+.2f}€, bank: {old_bank:.2f}€ → {new_bank:.2f}€")
+        
+        # Notificar al usuario
+        try:
+            user_msg = f"{emoji} <b>RESULTADO: {status_text}</b>\\n\\n"
+            user_msg += f"🎯 Pick: {bet.get('selection', 'N/A')}\\n"
+            if bet.get('point'):
+                user_msg += f"📊 Línea: {bet['point']}\\n"
+            user_msg += f"💰 Cuota: {odds:.2f}\\n"
+            user_msg += f"💵 Stake: {stake:.2f}€\\n\\n"
+            
+            if result == 'won':
+                user_msg += f"✅ <b>Ganancia: +{profit_loss:.2f}€</b>\\n"
+            elif result == 'lost':
+                user_msg += f"❌ <b>Pérdida: {profit_loss:.2f}€</b>\\n"
+            else:
+                user_msg += f"🔄 <b>Devolución: {stake:.2f}€</b>\\n"
+            
+            user_msg += f"\\n🏦 <b>Bank actualizado:</b>\\n"
+            user_msg += f"💵 Anterior: {old_bank:.2f}€\\n"
+            user_msg += f"💰 Nuevo: {new_bank:.2f}€"
+            
+            from notifier.telegram import TelegramNotifier
+            import os
+            notifier = TelegramNotifier(os.getenv('BOT_TOKEN'))
+            await notifier.send_message(user.chat_id, user_msg)
+            logger.info(f"📤 Notificación enviada al usuario {user.chat_id}")
+        except Exception as e:
+            logger.error(f"❌ Error notificando usuario {user.chat_id}: {e}")
+    
+    # Guardar todos los cambios
+    users_manager.save()
+    logger.info(f"💾 Cambios guardados para {updated_count} usuarios")
+    
+    # Actualizar mensaje del admin
+    if result == 'won':
+        emoji = "✅"
+        status_text = "GANADO"
+    elif result == 'lost':
+        emoji = "❌"
+        status_text = "PERDIDO"
+    else:
+        emoji = "🔄"
+        status_text = "EMPATE"
+    
+    updated_msg = query.message.text + f"\\n\\n{emoji} <b>{status_text}</b> - Verificado por admin\\n"
+    updated_msg += f"👥 {updated_count} usuarios actualizados\\n"
+    updated_msg += f"💰 Profit/Loss total: {total_profit_loss:+.2f}€"
+    
+    try:
+        await query.edit_message_text(updated_msg)
+    except:
+        await query.message.reply_text(updated_msg)
+    
+    logger.info(f"✅ Verificación GLOBAL completada: {result} para {updated_count} usuarios")
+
+
 async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comando /pendientes - Muestra todas las alertas sin verificar con botones
