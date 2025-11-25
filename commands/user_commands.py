@@ -15,7 +15,9 @@ Comandos disponibles:
 - /pagar - Simular pago (testing)
 """
 from typing import Dict
+import logging
 from data.users import get_users_manager
+from referrals.referral_system import ReferralSystem
 from notifier.alert_formatter import format_stats_message
 from notifier.premium_messages import (
     format_free_vs_premium_message,
@@ -339,14 +341,31 @@ async def handle_pagar_command(chat_id: str, args: str) -> str:
         payment_info = user.process_premium_payment(amount)
         users_manager.save()
         
-        # Si hay referidor, procesar comisión
+        # Si hay referidor, procesar comisión AUTOMÁTICAMENTE
         commission_earned = False
+        logger = logging.getLogger(__name__)
+        
         if payment_info['referrer_commission']:
             referrer_id = payment_info['referrer_commission']['referrer_id']
             referrer = users_manager.get_user(referrer_id)
             
+            # Procesar en sistema de usuarios (legacy)
             commission_info = referrer.add_paid_referral(amount)
             users_manager.save()
+            
+            # NUEVO: Procesar en ReferralSystem automáticamente
+            try:
+                referral_system = ReferralSystem()
+                referral_result = referral_system.process_premium_payment(
+                    user_id=chat_id,
+                    amount_usd=amount,
+                    payment_method="user_payment"
+                )
+                if referral_result['success'] and referral_result['reward_granted']:
+                    logger.info(f"✅ Comisión automática: {referral_result['commission']:.2f}€ para {referrer_id}")
+                    commission_earned = True
+            except Exception as e:
+                logger.error(f"❌ Error procesando comisión automática: {e}")
             
             # Marcar para envío de notificaciones
             payment_info['_send_commission_notification'] = {
