@@ -2330,8 +2330,6 @@ Tu saldo sigue disponible.
             # NUEVO: Enviar copia al admin con botones de verificación manual
             if CHAT_ID and str(user.chat_id) != str(CHAT_ID):
                 try:
-                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                    
                     # Obtener alert_id del tracker para los botones
                     # Generar el mismo ID que usa el tracker
                     import time
