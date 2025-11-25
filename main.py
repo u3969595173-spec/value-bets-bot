@@ -2208,19 +2208,22 @@ Tu saldo sigue disponible.
                 logger.error(f"DEBUG: ERROR formatting message: {e}")
                 return False
             
-            # CREAR BOTONES DE VERIFICACIÓN MANUAL
-            event_id = candidate.get('id', '')
-            keyboard = [[
-                InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_{user.chat_id}_{event_id}"),
-                InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_{user.chat_id}_{event_id}"),
-                InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_{user.chat_id}_{event_id}")
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            # CREAR BOTONES DE VERIFICACIÓN MANUAL - SOLO PARA ADMIN
+            reply_markup = None
+            if str(user.chat_id) == str(CHAT_ID):  # Solo admin recibe botones
+                event_id = candidate.get('id', '')
+                keyboard = [[
+                    InlineKeyboardButton("✅ Ganado", callback_data=f"verify_won_{user.chat_id}_{event_id}"),
+                    InlineKeyboardButton("❌ Perdido", callback_data=f"verify_lost_{user.chat_id}_{event_id}"),
+                    InlineKeyboardButton("🔄 Devolución", callback_data=f"verify_push_{user.chat_id}_{event_id}")
+                ]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                logger.info(f"DEBUG: Verification buttons added for admin")
             
-            # Enviar mensaje CON BOTONES
+            # Enviar mensaje (con o sin botones según si es admin)
             try:
                 await self.notifier.send_message(user.chat_id, message, reply_markup=reply_markup)
-                logger.info(f"DEBUG: Message with verification buttons sent successfully to {user.chat_id}")
+                logger.info(f"DEBUG: Message sent successfully to {user.chat_id}")
             except Exception as e:
                 logger.error(f"DEBUG: ERROR sending message: {e}")
                 return False
