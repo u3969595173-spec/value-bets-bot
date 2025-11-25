@@ -48,6 +48,46 @@ SPORT_TRANSLATIONS = {
 }
 
 
+# Traducciones de mercados
+MARKET_TRANSLATIONS = {
+    # Mercados básicos
+    'h2h': 'Ganador',
+    'spreads': 'Hándicap',
+    'totals': 'Total Puntos',
+    
+    # Quarters (cuartos)
+    'h2h_q1': 'Ganador 1er Cuarto',
+    'h2h_q2': 'Ganador 2do Cuarto',
+    'h2h_q3': 'Ganador 3er Cuarto',
+    'h2h_q4': 'Ganador 4to Cuarto',
+    'spreads_q1': 'Hándicap 1er Cuarto',
+    'spreads_q2': 'Hándicap 2do Cuarto',
+    'spreads_q3': 'Hándicap 3er Cuarto',
+    'spreads_q4': 'Hándicap 4to Cuarto',
+    'totals_q1': 'Total 1er Cuarto',
+    'totals_q2': 'Total 2do Cuarto',
+    'totals_q3': 'Total 3er Cuarto',
+    'totals_q4': 'Total 4to Cuarto',
+    
+    # Halves (mitades)
+    'h2h_h1': 'Ganador 1era Mitad',
+    'h2h_h2': 'Ganador 2da Mitad',
+    'spreads_h1': 'Hándicap 1era Mitad',
+    'spreads_h2': 'Hándicap 2da Mitad',
+    'totals_h1': 'Total 1era Mitad',
+    'totals_h2': 'Total 2da Mitad',
+    
+    # Player props (estadísticas de jugadores)
+    'player_points': 'Puntos del Jugador',
+    'player_assists': 'Asistencias del Jugador',
+    'player_rebounds': 'Rebotes del Jugador',
+    'player_pass_tds': 'TDs de Pase del Jugador',
+    'player_rush_yds': 'Yardas Terrestres del Jugador',
+    'player_receptions': 'Recepciones del Jugador',
+    'player_pass_yds': 'Yardas de Pase del Jugador',
+    'player_rush_attempts': 'Intentos Terrestres del Jugador',
+}
+
 def translate_sport(sport_key: str, sport_nice: str = None) -> str:
     """
     Traduce el nombre del deporte al español.
@@ -74,3 +114,15 @@ def translate_sport(sport_key: str, sport_nice: str = None) -> str:
     
     # Último fallback: capitalizar sport_key
     return sport_key.replace('_', ' ').title()
+
+def translate_market(market_key: str) -> str:
+    """
+    Traduce el tipo de mercado al español.
+    
+    Args:
+        market_key: Clave del mercado (ej: 'h2h_q1', 'player_points')
+    
+    Returns:
+        Nombre del mercado en español
+    """
+    return MARKET_TRANSLATIONS.get(market_key, market_key.replace('_', ' ').title())

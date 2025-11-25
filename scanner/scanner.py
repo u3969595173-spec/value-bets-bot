@@ -120,11 +120,28 @@ class ValueScanner:
             for bm in ev.get('bookmakers', []):
                 for m in bm.get('markets', []):
                     market_key = m.get('key')
-                    if market_key not in ['h2h', 'totals', 'spreads']:
+                    # Expandir mercados aceptados: básicos + quarters + halves + player props
+                    accepted_markets = [
+                        'h2h', 'totals', 'spreads',
+                        'h2h_q1', 'h2h_q2', 'h2h_q3', 'h2h_q4',
+                        'h2h_h1', 'h2h_h2',
+                        'totals_q1', 'totals_q2', 'totals_q3', 'totals_q4',
+                        'totals_h1', 'totals_h2',
+                        'spreads_q1', 'spreads_q2', 'spreads_q3', 'spreads_q4',
+                        'spreads_h1', 'spreads_h2',
+                        'player_points', 'player_assists', 'player_rebounds',
+                        'player_pass_tds', 'player_rush_yds', 'player_receptions'
+                    ]
+                    if market_key not in accepted_markets:
                         continue
                     for out in m.get('outcomes', []):
                         discarded['total_checked'] += 1
                         sel = out.get('name') or 'Sin nombre'
+                        # Para player props, el nombre del jugador viene en 'description'
+                        description = out.get('description', '')
+                        if description and market_key.startswith('player_'):
+                            sel = f"{description} - {sel}"
+                        
                         if not sel or sel.strip() == '':
                             logger.warning(f"[SCANNER] Outcome sin nombre en evento {ev.get('id')}")
                             discarded['missing_fields'] += 1
@@ -143,7 +160,9 @@ class ValueScanner:
                         home = ev.get('home_team') or ev.get('home') or ev.get('competitor_home') or 'Equipo Local'
                         away = ev.get('away_team') or ev.get('away') or ev.get('competitor_away') or 'Equipo Visitante'
                         name_lower = sel.lower()
-                        if market_key == 'h2h':
+                        
+                        # Probabilidades base según tipo de mercado
+                        if market_key in ['h2h', 'h2h_q1', 'h2h_q2', 'h2h_q3', 'h2h_q4', 'h2h_h1', 'h2h_h2']:
                             if 'draw' in name_lower or name_lower in ['x','empate']:
                                 prob_est = probs.get('draw')
                             elif (home and home.lower() in name_lower) or name_lower in ['home','local']:
@@ -152,13 +171,17 @@ class ValueScanner:
                                 prob_est = probs.get('away')
                             else:
                                 prob_est = probs.get('home') if 'home' in probs else list(probs.values())[0]
-                        elif market_key == 'totals':
+                        elif market_key in ['totals', 'totals_q1', 'totals_q2', 'totals_q3', 'totals_q4', 'totals_h1', 'totals_h2']:
                             prob_est = 0.52 if 'over' in sel.lower() else 0.48
-                        elif market_key == 'spreads':
+                        elif market_key in ['spreads', 'spreads_q1', 'spreads_q2', 'spreads_q3', 'spreads_q4', 'spreads_h1', 'spreads_h2']:
                             if home and home.lower() in name_lower:
                                 prob_est = probs.get('home', 0.5)
                             else:
                                 prob_est = probs.get('away', 0.5)
+                        elif market_key.startswith('player_'):
+                            # Player props: usar probabilidad más conservadora
+                            prob_est = 0.52 if 'over' in sel.lower() else 0.48
+                        
                         if not prob_est or prob_est < self.min_prob:
                             discarded['probability'] += 1
                             continue
