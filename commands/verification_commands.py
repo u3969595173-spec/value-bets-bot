@@ -504,6 +504,11 @@ async def show_pending_history_callback(update: Update, context: ContextTypes.DE
     # Filtrar solo apuestas pendientes
     pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
     
+    # DEBUG
+    logger.info(f"🔍 show_pending_history: Total bets={len(user.bet_history)}, Pending={len(pending_bets)}")
+    for i, bet in enumerate(user.bet_history[:5], 1):
+        logger.info(f"   Bet {i}: status='{bet.get('status')}' event={bet.get('event_id', 'N/A')[:12]}")
+    
     if not pending_bets:
         await query.edit_message_text("✅ No tienes apuestas pendientes")
         return
