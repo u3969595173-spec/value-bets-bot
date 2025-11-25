@@ -109,7 +109,7 @@ SPORTS = os.getenv("SPORTS", "basketball_nba,basketball_euroleague,basketball_sp
 EUROPE_TZ = ZoneInfo("Europe/Madrid")  # Hora de España
 AMERICA_TZ = ZoneInfo("America/New_York")  # Fallback
 DAILY_START_HOUR = 6  # 6 AM España
-UPDATE_INTERVAL_MINUTES = 90  # 90 minutos = 16 requests/día × 12 deportes × 3 mercados = 576 créditos/día (~35 días)
+UPDATE_INTERVAL_MINUTES = 120  # 120 minutos = 12 requests/día × 18 deportes × mercados expandidos = más eficiente con API credits
 ALERT_WINDOW_HOURS = 4  # Alertar cuando falten menos de 4 horas (más value cerca del inicio)
 
 # Configuracin adicional
