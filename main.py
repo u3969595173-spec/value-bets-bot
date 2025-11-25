@@ -1644,7 +1644,7 @@ Tu saldo sigue disponible.
                 cmd_reset_historial, handle_verification_callback, show_full_history_callback, back_to_stats_callback
             )
             from commands.admin_telegram_commands import (
-                cmd_pagar_referidos, cmd_saldo, handle_pagar_callback
+                cmd_pagar_referidos, cmd_saldo, cmd_usuarios, handle_pagar_callback
             )
             from telegram.ext import CallbackQueryHandler
             
@@ -1669,6 +1669,9 @@ Tu saldo sigue disponible.
             self.telegram_app.add_handler(CommandHandler("pagar", cmd_pagar_referidos))  # Alias corto
             logger.info("✅ Registrando /saldo...")
             self.telegram_app.add_handler(CommandHandler("saldo", cmd_saldo))
+            logger.info("✅ Registrando /usuarios...")
+            self.telegram_app.add_handler(CommandHandler("usuarios", cmd_usuarios))
+            self.telegram_app.add_handler(CommandHandler("users", cmd_usuarios))  # Alias en inglés
             
             logger.info("✅ Registrando handlers de callbacks...")
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))

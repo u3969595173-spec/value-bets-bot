@@ -4,11 +4,97 @@ Comandos de Telegram para administración
 
 import os
 import logging
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from data.users import get_users_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def cmd_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /usuarios - Lista todos los usuarios registrados (solo admin)
+    """
+    chat_id = update.effective_user.id
+    
+    # Verificar que es admin
+    admin_id = os.getenv('CHAT_ID')
+    if str(chat_id) != str(admin_id):
+        await update.message.reply_text("❌ Solo el administrador puede usar este comando")
+        return
+    
+    users_manager = get_users_manager()
+    all_users = list(users_manager.users.values())
+    
+    if not all_users:
+        await update.message.reply_text("📭 No hay usuarios registrados")
+        return
+    
+    # Ordenar por fecha de registro (más recientes primero)
+    all_users.sort(key=lambda u: getattr(u, 'join_date', ''), reverse=True)
+    
+    # Estadísticas generales
+    total = len(all_users)
+    premium = sum(1 for u in all_users if u.is_premium_active())
+    free = total - premium
+    con_referrer = sum(1 for u in all_users if hasattr(u, 'referrer_id') and u.referrer_id)
+    con_referidos = sum(1 for u in all_users if hasattr(u, 'referred_users') and len(u.referred_users) > 0)
+    
+    msg = f"👥 **USUARIOS REGISTRADOS**\n\n"
+    msg += f"📊 **Total:** {total} usuarios\n"
+    msg += f"💎 Premium: {premium}\n"
+    msg += f"🆓 Free: {free}\n"
+    msg += f"🔗 Con referrer: {con_referrer}\n"
+    msg += f"👨‍👩‍👧‍👦 Con referidos: {con_referidos}\n\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    await update.message.reply_text(msg)
+    
+    # Enviar usuarios en grupos de 20
+    for i in range(0, len(all_users), 20):
+        batch = all_users[i:i+20]
+        user_msg = f"**Usuarios {i+1}-{min(i+20, total)}:**\n\n"
+        
+        for idx, user in enumerate(batch, start=i+1):
+            username = f"@{user.username}" if user.username else user.chat_id
+            status = "💎" if user.is_premium_active() else "🆓"
+            
+            # Info adicional
+            referidos_count = len(getattr(user, 'referred_users', []))
+            saldo = getattr(user, 'saldo_comision', 0)
+            
+            user_msg += f"{idx}. {status} {username}\n"
+            user_msg += f"   ID: `{user.chat_id}`\n"
+            
+            if user.is_premium_active():
+                end_date = getattr(user, 'suscripcion_fin', '')
+                if end_date:
+                    try:
+                        expiry = datetime.fromisoformat(end_date)
+                        user_msg += f"   ⏰ Vence: {expiry.strftime('%d/%m/%Y')}\n"
+                    except:
+                        pass
+            
+            if referidos_count > 0:
+                user_msg += f"   👥 Referidos: {referidos_count}\n"
+            
+            if saldo > 0:
+                user_msg += f"   💰 Saldo: ${saldo:.2f}\n"
+            
+            if hasattr(user, 'referrer_id') and user.referrer_id:
+                referrer = users_manager.get_user(user.referrer_id)
+                if referrer:
+                    user_msg += f"   🔗 Referido por: @{referrer.username}\n"
+            
+            user_msg += "\n"
+        
+        await update.message.reply_text(user_msg)
+        
+    # Resumen final
+    summary = f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    summary += f"✅ Mostrando {total} usuarios"
+    await update.message.reply_text(summary)
 
 
 async def cmd_pagar_referidos(update: Update, context: ContextTypes.DEFAULT_TYPE):
