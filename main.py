@@ -1642,7 +1642,7 @@ Tu saldo sigue disponible.
             from commands.verification_commands import (
                 cmd_pendientes, cmd_stats_pro, cmd_verificar_historial, cmd_limpiar_pendientes,
                 cmd_reset_historial, handle_verification_callback, handle_verification_all_callback,
-                show_full_history_callback, back_to_stats_callback
+                show_full_history_callback, show_pending_history_callback, back_to_stats_callback
             )
             from commands.admin_telegram_commands import (
                 cmd_pagar_referidos, cmd_saldo, cmd_usuarios, handle_pagar_callback
@@ -1678,6 +1678,7 @@ Tu saldo sigue disponible.
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_all_callback, pattern="^verify_(won|lost|push)_all_"))
             self.telegram_app.add_handler(CallbackQueryHandler(handle_verification_callback, pattern="^verify_(won|lost|push)_"))
             self.telegram_app.add_handler(CallbackQueryHandler(show_full_history_callback, pattern="^show_full_history$"))
+            self.telegram_app.add_handler(CallbackQueryHandler(show_pending_history_callback, pattern="^show_pending_history$"))
             self.telegram_app.add_handler(CallbackQueryHandler(back_to_stats_callback, pattern="^back_to_stats$"))
             self.telegram_app.add_handler(CallbackQueryHandler(handle_pagar_callback, pattern="^pagar_"))
             logger.info("✅ Comandos de verificación y admin registrados correctamente")

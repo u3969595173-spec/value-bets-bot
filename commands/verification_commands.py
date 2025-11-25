@@ -476,13 +476,108 @@ async def cmd_stats_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"📊 {won_bar}{lost_bar}\n"
         msg += f"   {won}W / {lost}L\n\n"
     
-    # Botón para ver historial
-    keyboard = [[
-        InlineKeyboardButton("📜 Ver Historial Completo", callback_data="show_full_history")
-    ]]
+    # Botones para ver historial
+    keyboard = [
+        [InlineKeyboardButton("⏳ Ver Pendientes", callback_data="show_pending_history")],
+        [InlineKeyboardButton("📜 Ver Historial Completo", callback_data="show_full_history")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(msg, reply_markup=reply_markup)
+
+
+async def show_pending_history_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback para mostrar solo las apuestas pendientes del historial
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = query.from_user.id
+    users_manager = get_users_manager()
+    user = users_manager.get_user(str(chat_id))
+    
+    if not user:
+        await query.edit_message_text("❌ Usuario no encontrado")
+        return
+    
+    # Filtrar solo apuestas pendientes
+    pending_bets = [bet for bet in user.bet_history if bet.get('status') == 'pending']
+    
+    if not pending_bets:
+        await query.edit_message_text("✅ No tienes apuestas pendientes")
+        return
+    
+    # Ordenar por fecha (más reciente primero)
+    sorted_pending = sorted(
+        pending_bets,
+        key=lambda x: x.get('date', ''),
+        reverse=True
+    )
+    
+    msg = f"⏳ *APUESTAS PENDIENTES* ({len(pending_bets)})\n\n"
+    
+    for i, bet in enumerate(sorted_pending[:20], 1):  # Máximo 20
+        # Información completa
+        home = bet.get('home_team', 'Team A')
+        away = bet.get('away_team', 'Team B')
+        sport = bet.get('sport', '')
+        market = bet.get('market', '')
+        selection = bet.get('selection', 'N/A')
+        point = bet.get('point', '')
+        odds = bet.get('odds', 0)
+        stake = bet.get('stake', 0)
+        
+        # Formatear fecha
+        game_time = bet.get('commence_time', bet.get('date', ''))
+        if game_time:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(game_time.replace('Z', '+00:00'))
+                formatted_date = dt.strftime('%d/%m/%Y %H:%M')
+            except:
+                formatted_date = game_time[:16]
+        else:
+            formatted_date = "N/A"
+        
+        # Tipo de apuesta
+        if 'spread' in market.lower() or 'handicap' in market.lower():
+            bet_type = "HANDICAP"
+        elif 'total' in market.lower() or 'over' in selection.lower() or 'under' in selection.lower():
+            bet_type = "TOTALES"
+        elif 'h2h' in market.lower() or 'moneyline' in market.lower():
+            bet_type = "GANADOR"
+        else:
+            bet_type = market.upper() if market else "APUESTA"
+        
+        msg += f"{i}. ⏳ *{bet_type}*\n"
+        msg += f"   🏟️ {home} vs {away}\n"
+        if sport:
+            msg += f"   ⚽ {sport.upper()}\n"
+        msg += f"   🎯 {selection}"
+        if point:
+            msg += f" ({point})"
+        msg += f"\n   💰 {odds:.2f} | 💵 {stake:.2f}€"
+        msg += f"\n   📅 {formatted_date}\n\n"
+        
+        # Telegram tiene límite de 4096 caracteres
+        if len(msg) > 3500:
+            await query.message.reply_text(msg)
+            msg = ""
+    
+    if msg:
+        await query.message.reply_text(msg)
+    
+    # Botones para volver
+    keyboard = [[
+        InlineKeyboardButton("◀️ Volver a Estadísticas", callback_data="back_to_stats")
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.message.reply_text(
+        f"📊 Total: {len(pending_bets)} apuestas pendientes\n"
+        f"💡 Usa /verificar para marcar resultados", 
+        reply_markup=reply_markup
+    )
 
 
 async def show_full_history_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
